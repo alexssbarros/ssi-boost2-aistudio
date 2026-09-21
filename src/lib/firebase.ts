@@ -9,6 +9,7 @@ import {
   onAuthStateChanged,
   sendPasswordResetEmail,
   updateProfile,
+  deleteUser,
   User as FirebaseUser
 } from 'firebase/auth';
 import { 
@@ -21,6 +22,7 @@ import {
   orderBy, 
   getDocs,
   getDocFromServer,
+  deleteDoc,
   serverTimestamp
 } from 'firebase/firestore';
 import { 
@@ -321,4 +323,46 @@ export async function uploadDiagnosticReport(
     return '';
   }
 }
+
+/**
+ * Account Purge & GDPR Compliance Methods
+ */
+export async function deleteUserData(userId: string): Promise<void> {
+  try {
+    // 1. Apagar diagnósticos da subcoleção
+    const diagCol = collection(db, 'users', userId, 'diagnostics');
+    const snapshot = await getDocs(diagCol);
+    for (const d of snapshot.docs) {
+      try {
+        await deleteDoc(d.ref);
+      } catch (e) {
+        console.warn('Aviso ao apagar diagnóstico específico:', e);
+      }
+    }
+
+    // 2. Apagar documento principal do usuário
+    const userRef = doc(db, 'users', userId);
+    await deleteDoc(userRef);
+  } catch (err) {
+    console.warn('Aviso ao apagar registros do Firestore:', err);
+  }
+}
+
+export async function deleteCurrentAuthUser(): Promise<boolean> {
+  const currentUser = auth.currentUser;
+  if (!currentUser) return true;
+
+  try {
+    await deleteUser(currentUser);
+    return true;
+  } catch (err: any) {
+    console.warn('Aviso ao excluir conta no Firebase Auth (pode requerer reautenticação recente):', err?.code || err?.message);
+    // Se falhar (ex: auth/requires-recent-login), deslogar para segurança
+    try {
+      await signOut(auth);
+    } catch {}
+    return false;
+  }
+}
+
 

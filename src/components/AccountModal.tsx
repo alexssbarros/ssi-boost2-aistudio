@@ -20,8 +20,8 @@ interface AccountModalProps {
   userAccount: UserAccount;
   onClose: () => void;
   onUpgrade: () => void;
-  onCancelSubscription: () => void;
-  onDeleteAccount: () => void;
+  onCancelSubscription: () => Promise<void> | void;
+  onDeleteAccount: () => Promise<void> | void;
   onLogout: () => void;
   onSyncSubscription?: () => Promise<SubscriptionPlan | null>;
 }
@@ -37,6 +37,10 @@ export function AccountModal({
   onSyncSubscription
 }: AccountModalProps) {
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [confirmCancelSub, setConfirmCancelSub] = useState(false);
+  const [isCancelingSub, setIsCancelingSub] = useState(false);
+  const [cancelSubMsg, setCancelSubMsg] = useState('');
   const [resetFeedback, setResetFeedback] = useState('');
   const [showPasswordChange, setShowPasswordChange] = useState(false);
   const [novaSenha, setNovaSenha] = useState('');
@@ -232,12 +236,55 @@ export function AccountModal({
                 )}
               </div>
             ) : (
-              <button 
-                onClick={onCancelSubscription}
-                className="text-xs text-rose-600 hover:underline font-semibold pt-1 block"
-              >
-                Cancelar renovação automática da assinatura
-              </button>
+              <div className="pt-1">
+                {confirmCancelSub ? (
+                  <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 space-y-2">
+                    <p className="text-amber-900 font-bold text-xs">
+                      Deseja cancelar a renovação automática da assinatura? Nenhuma nova cobrança será realizada em seu cartão.
+                    </p>
+                    <div className="flex gap-2">
+                      <button 
+                        type="button"
+                        disabled={isCancelingSub}
+                        onClick={async () => {
+                          setIsCancelingSub(true);
+                          try {
+                            await onCancelSubscription();
+                            setCancelSubMsg('Renovação cancelada com sucesso.');
+                          } finally {
+                            setIsCancelingSub(false);
+                            setConfirmCancelSub(false);
+                          }
+                        }}
+                        className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-60 transition"
+                      >
+                        {isCancelingSub && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                        Confirmar cancelamento da assinatura
+                      </button>
+                      <button 
+                        type="button"
+                        disabled={isCancelingSub}
+                        onClick={() => setConfirmCancelSub(false)}
+                        className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold hover:bg-slate-50 cursor-pointer transition"
+                      >
+                        Voltar
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button 
+                    type="button"
+                    onClick={() => setConfirmCancelSub(true)}
+                    className="text-xs text-rose-600 hover:underline font-semibold pt-1 block cursor-pointer"
+                  >
+                    Cancelar renovação automática da assinatura
+                  </button>
+                )}
+
+                {cancelSubMsg && (
+                  <p className="text-xs text-emerald-700 font-semibold pt-1">{cancelSubMsg}</p>
+                )}
+              </div>
             )}
           </div>
 
@@ -246,22 +293,43 @@ export function AccountModal({
             <h4 className="font-bold text-slate-900 flex items-center gap-1.5 text-rose-700">
               <Trash2 className="w-4 h-4" /> Excluir Conta e Histórico
             </h4>
-            <p className="text-slate-500 leading-relaxed">
-              Conforme as diretrizes de privacidade e conformidade da Seção 17 do PRD, você pode excluir permanentemente seu cadastro e todas as pontuações e planos do sistema.
+            <p className="text-slate-500 leading-relaxed text-xs">
+              Conforme a LGPD e as diretrizes da Seção 17 do PRD, a exclusão da conta cancela definitivamente qualquer renovação ou cobrança recorrente no cartão, desativa a assinatura no Stripe e remove permanentemente todos os seus dados e histórico de medições do SSI.
             </p>
             {confirmDelete ? (
-              <div className="p-3 rounded-xl bg-rose-50 border border-rose-300 space-y-2">
-                <p className="text-rose-800 font-bold">Tem certeza? Esta ação é irreversível e apagará todo o histórico de medições.</p>
+              <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-300 space-y-2.5">
+                <p className="text-rose-900 font-bold text-xs leading-relaxed">
+                  Atenção: Esta ação é definitiva e irreversível. Sua conta será apagada, as renovações do plano serão interrompidas no Stripe e todo o histórico será removido.
+                </p>
                 <div className="flex gap-2">
                   <button
-                    onClick={onDeleteAccount}
-                    className="px-3 py-1.5 rounded-lg bg-rose-600 text-white font-bold text-xs"
+                    type="button"
+                    id="btn-confirmar-exclusao-conta"
+                    disabled={isDeleting}
+                    onClick={async () => {
+                      setIsDeleting(true);
+                      try {
+                        await onDeleteAccount();
+                      } finally {
+                        setIsDeleting(false);
+                      }
+                    }}
+                    className="px-3.5 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition disabled:opacity-60 cursor-pointer"
                   >
-                    Sim, excluir tudo definitivamente
+                    {isDeleting ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        Excluindo conta e cancelando renovações...
+                      </>
+                    ) : (
+                      'Sim, excluir tudo definitivamente'
+                    )}
                   </button>
                   <button
+                    type="button"
+                    disabled={isDeleting}
                     onClick={() => setConfirmDelete(false)}
-                    className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold"
+                    className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold hover:bg-slate-50 cursor-pointer transition"
                   >
                     Cancelar
                   </button>
@@ -269,8 +337,10 @@ export function AccountModal({
               </div>
             ) : (
               <button 
+                type="button"
+                id="btn-iniciar-exclusao-conta"
                 onClick={() => setConfirmDelete(true)}
-                className="py-2 px-3 rounded-lg border border-rose-200 text-rose-700 hover:bg-rose-50 font-semibold transition"
+                className="py-2 px-3 rounded-lg border border-rose-200 text-rose-700 hover:bg-rose-50 font-semibold text-xs transition cursor-pointer"
               >
                 Excluir minha conta e histórico
               </button>

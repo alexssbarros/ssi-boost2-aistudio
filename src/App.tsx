@@ -35,7 +35,9 @@ import {
   updateDiagnosticReportUrl,
   getUserProfile,
   updateUserPlan,
-  saveUserProfile
+  saveUserProfile,
+  deleteUserData,
+  deleteCurrentAuthUser
 } from './lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 
@@ -660,17 +662,93 @@ export default function App() {
     }
   };
 
+  const handleCancelSubscription = async () => {
+    const targetEmail = (userAccount.email || auth.currentUser?.email || '').trim().toLowerCase();
+    const targetUid = auth.currentUser?.uid || userAccount.id;
+
+    try {
+      if (targetEmail || targetUid) {
+        await fetch('/api/stripe/cancel-subscription', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: targetEmail, userId: targetUid })
+        });
+      }
+
+      if (targetUid) {
+        await updateUserPlan(targetUid, 'free');
+      }
+
+      setUserPlan('free');
+      localStorage.setItem('ssiboost_plan', 'free');
+      setShowAccountModal(false);
+    } catch (err) {
+      console.warn('Aviso ao cancelar renovação da assinatura:', err);
+      setUserPlan('free');
+      localStorage.setItem('ssiboost_plan', 'free');
+      setShowAccountModal(false);
+    }
+  };
+
   const handleExcluirConta = async () => {
-    await logoutUser();
-    setScores({ total: 0, pilar1: 0, pilar2: 0, pilar3: 0, pilar4: 0 });
-    setCompletedTasks([]);
-    setUserAccount({ nome: '', email: '', senha: '', aceiteTermos: false });
-    setUserPlan('free');
-    setIsUserLoggedIn(false);
-    setShowAccountModal(false);
-    localStorage.clear();
-    setCurrentStep('landing');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    const targetEmail = (userAccount.email || auth.currentUser?.email || '').trim().toLowerCase();
+    const targetUid = auth.currentUser?.uid || userAccount.id;
+
+    try {
+      // 1. Interromper todas as assinaturas e renovações recorrentes no Stripe
+      try {
+        await fetch('/api/account/delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: targetEmail, userId: targetUid })
+        });
+      } catch (stripeErr) {
+        console.warn('Aviso ao cancelar cobrança e renovação no Stripe:', stripeErr);
+      }
+
+      // 2. Apagar todos os dados e histórico do usuário no Firestore
+      if (targetUid) {
+        try {
+          await deleteUserData(targetUid);
+        } catch (dbErr) {
+          console.warn('Aviso ao expurgar dados do Firestore:', dbErr);
+        }
+      }
+
+      // 3. Excluir conta no Firebase Authentication
+      try {
+        await deleteCurrentAuthUser();
+      } catch (authErr) {
+        console.warn('Aviso ao excluir conta no Firebase Auth:', authErr);
+        await logoutUser();
+      }
+
+      // 4. Limpar todos os estados da aplicação e cache local
+      setScores({ total: 0, pilar1: 0, pilar2: 0, pilar3: 0, pilar4: 0 });
+      setCompletedTasks([]);
+      setHistoricoSSI([
+        { data: '15/Ago', total: 49, p1: 14, p2: 10, p3: 9, p4: 16 },
+        { data: 'Hoje', total: 58, p1: 18, p2: 12, p3: 11, p4: 17 }
+      ]);
+      setUserAccount({ nome: '', email: '', senha: '', aceiteTermos: false });
+      setUserPlan('free');
+      setIsUserLoggedIn(false);
+      setShowAccountModal(false);
+      localStorage.clear();
+
+      // 5. Redirecionar para a landing page
+      setCurrentStep('landing');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (err) {
+      console.error('Erro ao excluir conta:', err);
+      await logoutUser();
+      setIsUserLoggedIn(false);
+      setUserPlan('free');
+      setShowAccountModal(false);
+      localStorage.clear();
+      setCurrentStep('landing');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   };
 
   const handleLogout = async () => {
@@ -748,6 +826,10 @@ export default function App() {
                 setAuthMode('register');
                 setShowAuthModal(true);
               }
+            }}
+            onOpenFaq={() => {
+              setCurrentStep('faq');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
             }}
           />
         )}
@@ -923,10 +1005,7 @@ export default function App() {
             setCurrentStep('checkout');
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
-          onCancelSubscription={() => {
-            setUserPlan('free');
-            setShowAccountModal(false);
-          }}
+          onCancelSubscription={handleCancelSubscription}
           onDeleteAccount={handleExcluirConta}
           onLogout={handleLogout}
           onSyncSubscription={async () => {

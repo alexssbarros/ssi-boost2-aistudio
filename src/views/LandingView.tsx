@@ -20,9 +20,10 @@ import { SubscriptionPlan } from '../types';
 interface LandingViewProps {
   onStart: () => void;
   onSelectPlan: (plan: SubscriptionPlan) => void;
+  onOpenFaq?: () => void;
 }
 
-export function LandingView({ onStart, onSelectPlan }: LandingViewProps) {
+export function LandingView({ onStart, onSelectPlan, onOpenFaq }: LandingViewProps) {
   return (
     <div className="space-y-16 pb-16">
       {/* Hero Section */}
@@ -303,6 +304,27 @@ export function LandingView({ onStart, onSelectPlan }: LandingViewProps) {
                 </p>
               </details>
             ))}
+          </div>
+
+          {/* Botão e link para o FAQ Completo */}
+          <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-4 p-5 rounded-2xl bg-gradient-to-r from-blue-50/80 via-slate-50 to-indigo-50/60 border border-blue-100/90 shadow-2xs">
+            <div className="text-center sm:text-left space-y-1">
+              <h4 className="text-sm font-bold text-slate-900 flex items-center justify-center sm:justify-start gap-1.5">
+                <HelpCircle className="w-4 h-4 text-blue-600" /> Quer ver todas as respostas detalhadas?
+              </h4>
+              <p className="text-xs text-slate-500 max-w-md leading-relaxed">
+                Acesse nossa central completa com busca integrada, tópicos sobre segurança de dados, cancelamento e metodologia prática do SSI.
+              </p>
+            </div>
+            <button
+              type="button"
+              id="btn-ver-faq-completo"
+              onClick={onOpenFaq}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs md:text-sm shadow-sm transition transform hover:scale-[1.02] cursor-pointer whitespace-nowrap flex-shrink-0"
+            >
+              <span>Ver FAQ Completo</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
           </div>
         </div>
       </section>

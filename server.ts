@@ -759,6 +759,120 @@ app.get('/api/stripe/check-subscription', async (req, res) => {
   }
 });
 
+// 12. Stripe: Cancel recurring subscription
+app.post('/api/stripe/cancel-subscription', async (req, res) => {
+  try {
+    const email = (req.body.email as string)?.trim()?.toLowerCase();
+    const userId = (req.body.userId as string)?.trim();
+
+    if (!email && !userId) {
+      return res.status(400).json({ error: 'Email ou userId é obrigatório para cancelar a assinatura.' });
+    }
+
+    const stripe = getStripeClient();
+    if (!stripe) {
+      return res.json({
+        success: true,
+        canceledSubscriptions: 0,
+        message: 'Assinatura desativada (Stripe não configurado no servidor).'
+      });
+    }
+
+    let canceledCount = 0;
+
+    // Localizar clientes pelo email
+    if (email) {
+      const customers = await stripe.customers.list({
+        email,
+        limit: 10
+      });
+
+      for (const customer of customers.data) {
+        const subs = await stripe.subscriptions.list({
+          customer: customer.id,
+          status: 'all',
+          limit: 10
+        });
+
+        for (const sub of subs.data) {
+          if (sub.status === 'active' || sub.status === 'trialing' || sub.status === 'past_due') {
+            await stripe.subscriptions.cancel(sub.id);
+            canceledCount++;
+          }
+        }
+      }
+    }
+
+    return res.json({
+      success: true,
+      canceledSubscriptions: canceledCount,
+      message: canceledCount > 0 
+        ? 'Assinatura recorrente cancelada com sucesso no Stripe. A renovação automática foi desativada.'
+        : 'Nenhuma assinatura recorrente ativa encontrada no Stripe.'
+    });
+  } catch (err: any) {
+    console.error('Erro ao cancelar assinatura no Stripe:', err);
+    return res.status(500).json({ error: err.message || 'Erro ao cancelar assinatura no Stripe.' });
+  }
+});
+
+// 13. Account: Complete data deletion and subscription purge
+app.post('/api/account/delete', async (req, res) => {
+  try {
+    const email = (req.body.email as string)?.trim()?.toLowerCase();
+    const userId = (req.body.userId as string)?.trim();
+
+    const stripe = getStripeClient();
+    let canceledCount = 0;
+    let deletedCustomers = 0;
+
+    if (stripe && email) {
+      try {
+        const customers = await stripe.customers.list({
+          email,
+          limit: 10
+        });
+
+        for (const customer of customers.data) {
+          // Cancelar todas as assinaturas ativas para garantir interrupção da renovação
+          const subs = await stripe.subscriptions.list({
+            customer: customer.id,
+            status: 'all',
+            limit: 10
+          });
+
+          for (const sub of subs.data) {
+            if (sub.status !== 'canceled') {
+              await stripe.subscriptions.cancel(sub.id);
+              canceledCount++;
+            }
+          }
+
+          // Excluir cliente do Stripe
+          try {
+            await stripe.customers.del(customer.id);
+            deletedCustomers++;
+          } catch (delCustErr) {
+            console.warn('Aviso ao deletar cliente no Stripe:', delCustErr);
+          }
+        }
+      } catch (stripeErr: any) {
+        console.warn('Aviso ao expurgar dados do Stripe:', stripeErr?.message || stripeErr);
+      }
+    }
+
+    return res.json({
+      success: true,
+      canceledSubscriptions: canceledCount,
+      deletedCustomers,
+      message: 'Renovação do plano interrompida e dados do Stripe expurgados com sucesso.'
+    });
+  } catch (err: any) {
+    console.error('Erro no endpoint de exclusão de conta:', err);
+    return res.status(500).json({ error: err.message || 'Erro ao processar exclusão no backend.' });
+  }
+});
+
 // Vite middleware in development vs static files in production
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
