@@ -104,7 +104,7 @@ export function AuthModal({ mode, setMode, onClose, onSuccess }: AuthModalProps)
               {mode === 'forgot' && 'Recuperar Senha'}
             </h3>
             <p className="text-[11px] text-slate-500 mt-0.5">
-              {mode === 'register' && 'Crie sua conta segura com Firebase para salvar seus diagnósticos.'}
+              {mode === 'register' && 'Crie sua conta para realizar o diagnóstico e salvar seu histórico.'}
               {mode === 'login' && 'Acesse sua conta para continuar sua análise e histórico.'}
               {mode === 'forgot' && 'Informe seu e-mail para receber as instruções.'}
             </p>

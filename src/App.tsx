@@ -1,8 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { 
-  ShieldCheck 
-} from 'lucide-react';
-import { 
   SSIScores, 
   ContextoProfissional, 
   UserAccount, 
@@ -35,7 +32,10 @@ import {
   logoutUser,
   uploadScreenshot,
   uploadDiagnosticReport,
-  updateDiagnosticReportUrl
+  updateDiagnosticReportUrl,
+  getUserProfile,
+  updateUserPlan,
+  saveUserProfile
 } from './lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 
@@ -53,9 +53,7 @@ function fileToBase64(file: File): Promise<string> {
 
 export default function App() {
   // Navigation & Plan States
-  const [currentStep, setCurrentStep] = useState<StepView>(() => {
-    return 'input_ssi';
-  });
+  const [currentStep, setCurrentStep] = useState<StepView>('landing');
 
   const [userPlan, setUserPlan] = useState<SubscriptionPlan>(() => {
     const saved = localStorage.getItem('ssiboost_plan');
@@ -65,8 +63,9 @@ export default function App() {
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('annual');
 
   const [isUserLoggedIn, setIsUserLoggedIn] = useState<boolean>(() => {
+    if (auth.currentUser) return true;
     const saved = localStorage.getItem('ssiboost_loggedin');
-    return saved !== null ? saved === 'true' : true;
+    return saved === 'true';
   });
 
   const [postAuthStep, setPostAuthStep] = useState<StepView>('input_ssi');
@@ -77,10 +76,10 @@ export default function App() {
       try { return JSON.parse(saved); } catch {}
     }
     return {
-      nome: 'Alex Barros',
-      email: 'alexsbarros@gmail.com',
+      nome: '',
+      email: '',
       senha: '',
-      aceiteTermos: true
+      aceiteTermos: false
     };
   });
 
@@ -130,9 +129,17 @@ export default function App() {
   const [completedTasks, setCompletedTasks] = useState<string[]>(() => {
     const saved = localStorage.getItem('ssiboost_tasks');
     if (saved) {
-      try { return JSON.parse(saved); } catch {}
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          if (parsed.length === 2 && parsed.includes('d1') && parsed.includes('d2')) {
+            return [];
+          }
+          return parsed;
+        }
+      } catch {}
     }
-    return ['d1', 'd2'];
+    return [];
   });
 
   const [streakDays, setStreakDays] = useState(4);
@@ -185,6 +192,73 @@ export default function App() {
     localStorage.setItem('ssiboost_history', JSON.stringify(historicoSSI));
   }, [currentStep, userPlan, isUserLoggedIn, userAccount, scores, contexto, completedTasks, historicoSSI]);
 
+  // Auto scroll to top on step transitions
+  useEffect(() => {
+    window.scrollTo(0, 0);
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }, [currentStep]);
+
+  // Função para sincronizar e identificar status de assinante no Stripe e Firestore
+  const syncUserSubscription = async (email?: string, uid?: string): Promise<SubscriptionPlan | null> => {
+    const targetEmail = (email || userAccount.email || auth.currentUser?.email || '').trim().toLowerCase();
+    const targetUid = uid || auth.currentUser?.uid || userAccount.id;
+
+    // 1. Verificar primeiro no Firestore se já há perfil salvo com plano Pro
+    if (targetUid) {
+      try {
+        const profile = await getUserProfile(targetUid);
+        if (profile?.plan && (profile.plan === 'monthly' || profile.plan === 'annual')) {
+          setUserPlan(profile.plan);
+          localStorage.setItem('ssiboost_plan', profile.plan);
+          return profile.plan;
+        }
+      } catch (e) {
+        console.warn('Aviso ao consultar perfil Firestore:', e);
+      }
+    }
+
+    // 2. Verificar diretamente no Stripe se há assinatura ativa ou checkout pago para esse e-mail
+    if (targetEmail) {
+      try {
+        const res = await fetch(`/api/stripe/check-subscription?email=${encodeURIComponent(targetEmail)}&userId=${targetUid || ''}`);
+        const data = await res.json();
+        if (data.hasActiveSubscription && data.plan) {
+          const verifiedPlan: SubscriptionPlan = data.plan === 'annual' ? 'annual' : 'monthly';
+          setUserPlan(verifiedPlan);
+          localStorage.setItem('ssiboost_plan', verifiedPlan);
+
+          // Atualizar perfil no Firestore para persistência futura
+          if (targetUid) {
+            await updateUserPlan(targetUid, verifiedPlan);
+          }
+          return verifiedPlan;
+        }
+      } catch (err) {
+        console.warn('Aviso ao sincronizar assinatura com Stripe:', err);
+      }
+    }
+
+    return null;
+  };
+
+  // Bloqueio de rotas de análise para usuários não cadastrados/logados
+  useEffect(() => {
+    // Não bloquear se a URL contiver parâmetros de retorno de pagamento do Stripe
+    const isStripeReturn = typeof window !== 'undefined' && (
+      window.location.search.includes('checkout_status=success') ||
+      window.location.search.includes('checkout_success=true') ||
+      window.location.search.includes('session_id=')
+    );
+
+    if (!isUserLoggedIn && !auth.currentUser && !isStripeReturn) {
+      const protectedSteps: StepView[] = ['input_ssi', 'validation', 'context', 'report_free', 'dashboard'];
+      if (protectedSteps.includes(currentStep)) {
+        setCurrentStep('landing');
+      }
+    }
+  }, [isUserLoggedIn, currentStep]);
+
   // Firebase Auth sync and Firestore history load
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
@@ -194,11 +268,13 @@ export default function App() {
           ...prev,
           id: fbUser.uid,
           email: fbUser.email || prev.email,
-          nome: fbUser.displayName || prev.nome || 'Profissional',
+          nome: fbUser.displayName || prev.nome || (fbUser.email ? fbUser.email.split('@')[0] : 'Profissional'),
           avatarUrl: fbUser.photoURL || prev.avatarUrl
         }));
 
+        // Sincronizar plano com Stripe e Firestore
         try {
+          await syncUserSubscription(fbUser.email || undefined, fbUser.uid);
           const diagnostics = await getUserDiagnostics(fbUser.uid);
           if (diagnostics.length > 0) {
             const mappedHistory: HistoricalMeasurement[] = diagnostics.map(d => ({
@@ -213,7 +289,19 @@ export default function App() {
             setHistoricoSSI(mappedHistory);
           }
         } catch (err) {
-          console.warn('Aviso ao carregar histórico do Firestore:', err);
+          console.warn('Aviso ao carregar dados do usuário:', err);
+        }
+      } else {
+        const isStripeReturn = typeof window !== 'undefined' && (
+          window.location.search.includes('checkout_status=success') ||
+          window.location.search.includes('checkout_success=true') ||
+          window.location.search.includes('session_id=')
+        );
+        if (!isStripeReturn) {
+          const saved = localStorage.getItem('ssiboost_loggedin');
+          if (saved !== 'true') {
+            setIsUserLoggedIn(false);
+          }
         }
       }
     });
@@ -221,22 +309,71 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Handle Stripe Checkout return from redirect
+  // Handle Stripe Checkout return from redirect & identify payment
   useEffect(() => {
-    try {
-      const params = new URLSearchParams(window.location.search);
-      const checkoutStatus = params.get('checkout_status') || params.get('checkout_success');
-      const planParam = params.get('plan');
-      if (checkoutStatus === 'success' || checkoutStatus === 'true') {
-        const selectedPlan = planParam === 'monthly' ? 'monthly' : 'annual';
-        setUserPlan(selectedPlan);
-        setCurrentStep('dashboard');
-        // Clean query parameters from URL without page reload
-        window.history.replaceState({}, document.title, window.location.pathname);
+    const handleStripeReturn = async () => {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const checkoutStatus = params.get('checkout_status') || params.get('checkout_success');
+        const sessionId = params.get('session_id');
+        const planParam = params.get('plan');
+
+        if (checkoutStatus === 'success' || checkoutStatus === 'true' || sessionId) {
+          let verifiedPlan: SubscriptionPlan = planParam === 'monthly' ? 'monthly' : 'annual';
+          let customerEmail = '';
+          let customerName = '';
+
+          // Consultar endpoint de verificação do Stripe no backend
+          if (sessionId) {
+            try {
+              const res = await fetch(`/api/stripe/verify-session?sessionId=${encodeURIComponent(sessionId)}&plan=${planParam || ''}`);
+              const data = await res.json();
+              if (data.paid) {
+                if (data.plan === 'monthly' || data.plan === 'annual') {
+                  verifiedPlan = data.plan;
+                }
+                if (data.email) customerEmail = data.email;
+                if (data.name) customerName = data.name;
+              }
+            } catch (err) {
+              console.warn('Aviso ao verificar sessão Stripe:', err);
+            }
+          }
+
+          // Autenticar e identificar o usuário como assinante ativo
+          setIsUserLoggedIn(true);
+          setUserPlan(verifiedPlan);
+          localStorage.setItem('ssiboost_loggedin', 'true');
+          localStorage.setItem('ssiboost_plan', verifiedPlan);
+
+          setUserAccount(prev => {
+            const updated: UserAccount = {
+              ...prev,
+              email: customerEmail || prev.email || 'alexsbarros@gmail.com',
+              nome: customerName || prev.nome || (customerEmail ? customerEmail.split('@')[0] : 'Alex Barros'),
+              aceiteTermos: true
+            };
+            localStorage.setItem('ssiboost_user', JSON.stringify(updated));
+            return updated;
+          });
+
+          // Se houver usuário Firebase autenticado, salvar o plano Pro no Firestore
+          if (auth.currentUser) {
+            await updateUserPlan(auth.currentUser.uid, verifiedPlan);
+          }
+
+          setCurrentStep('dashboard');
+          window.scrollTo(0, 0);
+
+          // Limpar query string da URL mantendo o histórico limpo
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+      } catch (e) {
+        console.warn('Aviso ao processar retorno do checkout:', e);
       }
-    } catch (e) {
-      // Safe guard for window location parsing
-    }
+    };
+
+    handleStripeReturn();
   }, []);
 
   // Calculations
@@ -274,10 +411,18 @@ export default function App() {
     return { maisFraco, maisForte, nivel, badgeColor, list };
   }, [scores]);
 
-  // Diagnostic initiation
+  // Diagnostic initiation (exige cadastro prévio antes de qualquer análise)
   const handleStartAnalysis = (targetStep: StepView = 'input_ssi') => {
+    if (!isUserLoggedIn && !auth.currentUser) {
+      setPostAuthStep(targetStep);
+      setAuthMode('register');
+      setShowAuthModal(true);
+      return;
+    }
     setCurrentStep(targetStep);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo(0, 0);
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
   };
 
   // OCR Upload via Server Endpoint
@@ -552,21 +697,17 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-blue-100 selection:text-blue-900">
-      {/* Top Banner de Segurança e Independência */}
-      <header className="bg-slate-900 text-slate-200 text-xs py-2 px-4 text-center flex items-center justify-center gap-2 border-b border-slate-800">
-        <ShieldCheck className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-        <span>
-          <strong>100% Seguro:</strong> Sem senha, cookies, scraping ou automações na sua conta do LinkedIn. Plataforma independente com IA Gemini 3.
-        </span>
-      </header>
-
       {/* Main Navbar */}
       <Navbar 
         currentStep={currentStep}
         isUserLoggedIn={isUserLoggedIn}
         userPlan={userPlan}
         onNavigateHome={() => {
-          setCurrentStep(isUserLoggedIn && userPlan !== 'free' ? 'dashboard' : 'landing');
+          setCurrentStep('landing');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+        onOpenDashboard={() => {
+          setCurrentStep('dashboard');
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
         onNavigateSection={handleNavigateSection}
@@ -671,8 +812,14 @@ export default function App() {
             contexto={contexto}
             userPlan={userPlan}
             onUpgrade={() => {
-              setCurrentStep('checkout');
-              window.scrollTo({ top: 0, behavior: 'smooth' });
+              if (userPlan === 'monthly' || userPlan === 'annual') {
+                setCurrentStep('dashboard');
+              } else {
+                setCurrentStep('checkout');
+              }
+              window.scrollTo(0, 0);
+              document.documentElement.scrollTop = 0;
+              document.body.scrollTop = 0;
             }}
             aiStrategicAnalysis={aiStrategicAnalysis}
             isGeneratingAnalysis={isGeneratingAnalysis}
@@ -726,6 +873,10 @@ export default function App() {
             copyToClipboard={copyToClipboard}
             copiedNotification={copiedNotification}
             historicoSSI={historicoSSI}
+            onUpdateHistorico={(newHistory) => {
+              setHistoricoSSI(newHistory);
+              localStorage.setItem('ssiboost_history', JSON.stringify(newHistory));
+            }}
             onNewUpload={() => {
               setCurrentStep('input_ssi');
               window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -778,6 +929,9 @@ export default function App() {
           }}
           onDeleteAccount={handleExcluirConta}
           onLogout={handleLogout}
+          onSyncSubscription={async () => {
+            return await syncUserSubscription(userAccount.email, auth.currentUser?.uid || userAccount.id);
+          }}
         />
       )}
 
@@ -786,15 +940,30 @@ export default function App() {
           mode={authMode}
           setMode={setAuthMode}
           onClose={() => setShowAuthModal(false)}
-          onSuccess={(email, nome) => {
+          onSuccess={async (email, nome) => {
             setIsUserLoggedIn(true);
-            setUserAccount(prev => ({ 
-              ...prev, 
-              email: email || prev.email || 'alexsbarros@gmail.com',
-              nome: nome || prev.nome || (email ? email.split('@')[0] : 'Alex Barros')
-            }));
+            const userMail = email || userAccount.email || 'alexsbarros@gmail.com';
+            const userName = nome || userAccount.nome || (email ? email.split('@')[0] : 'Alex Barros');
+            
+            setUserAccount(prev => {
+              const updated = { 
+                ...prev, 
+                email: userMail,
+                nome: userName
+              };
+              localStorage.setItem('ssiboost_user', JSON.stringify(updated));
+              localStorage.setItem('ssiboost_loggedin', 'true');
+              return updated;
+            });
             setShowAuthModal(false);
-            setCurrentStep(postAuthStep || 'input_ssi');
+
+            // Sincronizar e identificar se este cadastro já tem assinatura ou pagamento pago no Stripe
+            const verified = await syncUserSubscription(userMail, auth.currentUser?.uid);
+            if (verified && verified !== 'free') {
+              setCurrentStep('dashboard');
+            } else {
+              setCurrentStep(postAuthStep || 'input_ssi');
+            }
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
         />

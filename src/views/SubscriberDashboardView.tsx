@@ -27,7 +27,10 @@ import {
   Zap,
   Loader2,
   ExternalLink,
-  FileCheck
+  FileCheck,
+  Plus,
+  Trash2,
+  X
 } from 'lucide-react';
 import { CICLOS_PLANO } from '../data/planData';
 import { 
@@ -63,6 +66,7 @@ interface SubscriberDashboardViewProps {
   copyToClipboard: (text: string) => void;
   copiedNotification: boolean;
   historicoSSI: HistoricalMeasurement[];
+  onUpdateHistorico?: (newHistory: HistoricalMeasurement[]) => void;
   onNewUpload: () => void;
   onOpenBilling: () => void;
   pitchInput: string;
@@ -102,6 +106,7 @@ export function SubscriberDashboardView({
   copyToClipboard,
   copiedNotification,
   historicoSSI,
+  onUpdateHistorico,
   onNewUpload,
   onOpenBilling,
   pitchInput,
@@ -121,6 +126,51 @@ export function SubscriberDashboardView({
   const [chartViewMode, setChartViewMode] = useState<'total' | 'pilares'>('total');
   const [copiedReportLink, setCopiedReportLink] = useState(false);
   
+  // Estado para adicionar nova medição manual na tabela de histórico
+  const [showAddMeasurementModal, setShowAddMeasurementModal] = useState(false);
+  const [newMeasureData, setNewMeasureData] = useState(() => {
+    return new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+  });
+  const [newMeasureP1, setNewMeasureP1] = useState(18);
+  const [newMeasureP2, setNewMeasureP2] = useState(14);
+  const [newMeasureP3, setNewMeasureP3] = useState(13);
+  const [newMeasureP4, setNewMeasureP4] = useState(18);
+
+  const handleSaveNewMeasurement = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const p1 = Math.min(25, Math.max(0, Number(newMeasureP1) || 0));
+    const p2 = Math.min(25, Math.max(0, Number(newMeasureP2) || 0));
+    const p3 = Math.min(25, Math.max(0, Number(newMeasureP3) || 0));
+    const p4 = Math.min(25, Math.max(0, Number(newMeasureP4) || 0));
+    const total = p1 + p2 + p3 + p4;
+
+    const newEntry: HistoricalMeasurement = {
+      data: newMeasureData.trim() || 'Hoje',
+      total,
+      p1,
+      p2,
+      p3,
+      p4
+    };
+
+    const updatedList = [...historicoSSI, newEntry];
+    if (onUpdateHistorico) {
+      onUpdateHistorico(updatedList);
+    }
+    setShowAddMeasurementModal(false);
+  };
+
+  const handleDeleteMeasurement = (indexToDelete: number) => {
+    if (historicoSSI.length <= 1) {
+      alert('Mantenha pelo menos uma medição registrada no histórico.');
+      return;
+    }
+    const updatedList = historicoSSI.filter((_, idx) => idx !== indexToDelete);
+    if (onUpdateHistorico) {
+      onUpdateHistorico(updatedList);
+    }
+  };
+
   // Limites iniciais de uso (Seção 5.3 do PRD: 60 gerações de assistente/mês)
   const [assistantsUsageCount, setAssistantsUsageCount] = useState(14);
   const maxAssistantsUsage = 60;
@@ -182,7 +232,7 @@ export function SubscriberDashboardView({
         </div>
       </div>
 
-      {/* Barra de Armazenamento e Nuvem (Firebase Storage) */}
+      {/* Barra de Armazenamento e Nuvem */}
       <div className="bg-white rounded-2xl p-4 md:p-5 border border-slate-200 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700 flex-shrink-0">
@@ -191,9 +241,6 @@ export function SubscriberDashboardView({
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-bold text-slate-900">Armazenamento em Nuvem</span>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 font-semibold">
-                Firebase Storage
-              </span>
               {uploadedScreenshotUrl && (
                 <a 
                   href={uploadedScreenshotUrl} 
@@ -207,8 +254,8 @@ export function SubscriberDashboardView({
             </div>
             <p className="text-[11px] text-slate-500 mt-0.5">
               {savedReportUrl 
-                ? 'Relatório completo arquivado no Firebase Storage disponível para download e auditoria.' 
-                : 'Seus diagnósticos e capturas são armazenados com segurança no bucket em nuvem do Firebase.'}
+                ? 'Relatório completo arquivado no seu histórico e disponível para download e auditoria.' 
+                : 'Grave esse diagnóstico e capturas no seu histórico'}
             </p>
           </div>
         </div>
@@ -222,7 +269,7 @@ export function SubscriberDashboardView({
                 rel="noopener noreferrer"
                 className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition"
               >
-                <FileCheck className="w-3.5 h-3.5" /> Baixar Relatório (Storage) <ExternalLink className="w-3 h-3" />
+                <FileCheck className="w-3.5 h-3.5" /> Baixar Relatório <ExternalLink className="w-3 h-3" />
               </a>
               <button
                 type="button"
@@ -244,12 +291,12 @@ export function SubscriberDashboardView({
               {isSavingReport ? (
                 <>
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  Salvando no Storage...
+                  Salvando no Histórico...
                 </>
               ) : (
                 <>
                   <UploadCloud className="w-3.5 h-3.5" />
-                  Salvar Relatório no Firebase Storage
+                  Salvar Relatório no Histórico
                 </>
               )}
             </button>
@@ -843,281 +890,483 @@ export function SubscriberDashboardView({
       )}
 
       {/* Aba 5: Histórico & Evolução com Gráficos Comparativos (Conforme Seção 8.6 do PRD) */}
-      {activeTab === 'evolucao' && (
-        <div className="space-y-6">
-          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
-                <h3 className="text-base font-bold text-slate-900">Histórico de Medições do SSI</h3>
-                <p className="text-xs text-slate-500">
-                  O sistema não atualiza o SSI automaticamente. A evolução acontece quando você envia uma nova captura ou digita suas pontuações.
-                </p>
-              </div>
+      {activeTab === 'evolucao' && (() => {
+        // Dados sincronizados dinamicamente com a tabela de medições
+        const historyList = historicoSSI && historicoSSI.length > 0 
+          ? historicoSSI 
+          : [
+              { data: '1ª Medição', total: scores.total || 49, p1: scores.pilar1 || 14, p2: scores.pilar2 || 10, p3: scores.pilar3 || 9, p4: scores.pilar4 || 16 }
+            ];
 
-              <button
-                onClick={onNewUpload}
-                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-1.5 transition shadow-xs"
-              >
-                <UploadCloud className="w-4 h-4" /> Registrar Nova Medição do SSI
-              </button>
-            </div>
+        const firstEntry = historyList[0];
+        const latestEntry = historyList[historyList.length - 1];
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="p-4 rounded-xl border border-slate-200 bg-slate-50">
-                <span className="text-xs text-slate-500 font-medium">Score Geral</span>
-                <div className="flex items-baseline gap-2 mt-1">
-                  <span className="text-2xl font-black text-slate-900">58</span>
-                  <span className="text-xs font-bold text-emerald-600">▲ +9 pts (+18%)</span>
-                </div>
-                <span className="text-[10px] text-slate-400">vs. 1ª medição (49 pts)</span>
-              </div>
+        const deltaTotal = latestEntry.total - firstEntry.total;
+        const percTotal = firstEntry.total > 0 ? Math.round((deltaTotal / firstEntry.total) * 100) : 0;
 
-              <div className="p-4 rounded-xl border border-slate-200 bg-slate-50">
-                <span className="text-xs text-slate-500 font-medium">Marca Profissional</span>
-                <div className="flex items-baseline gap-2 mt-1">
-                  <span className="text-2xl font-black text-blue-700">18 / 25</span>
-                  <span className="text-xs font-bold text-emerald-600">▲ +4 pts</span>
-                </div>
-                <span className="text-[10px] text-slate-400">Perfil otimizado</span>
-              </div>
+        const deltaP1 = latestEntry.p1 - firstEntry.p1;
+        const deltaP2 = latestEntry.p2 - firstEntry.p2;
+        const deltaP3 = latestEntry.p3 - firstEntry.p3;
+        const deltaP4 = latestEntry.p4 - firstEntry.p4;
 
-              <div className="p-4 rounded-xl border border-slate-200 bg-slate-50">
-                <span className="text-xs text-slate-500 font-medium">Pessoas Certas</span>
-                <div className="flex items-baseline gap-2 mt-1">
-                  <span className="text-2xl font-black text-emerald-700">12 / 25</span>
-                  <span className="text-xs font-bold text-emerald-600">▲ +2 pts</span>
-                </div>
-                <span className="text-[10px] text-slate-400">Buscas mapeadas</span>
-              </div>
+        // Cálculos do Gráfico SVG Dinâmico
+        const svgWidth = 650;
+        const plotYMin = 30;
+        const plotYMax = 170;
+        const plotHeight = plotYMax - plotYMin; // 140
+        const n = historyList.length;
 
-              <div className="p-4 rounded-xl border border-slate-200 bg-slate-50">
-                <span className="text-xs text-slate-500 font-medium">Criar Relacionamentos</span>
-                <div className="flex items-baseline gap-2 mt-1">
-                  <span className="text-2xl font-black text-purple-700">17 / 25</span>
-                  <span className="text-xs font-bold text-emerald-600">▲ +1 pt</span>
-                </div>
-                <span className="text-[10px] text-slate-400">Respostas ativas</span>
-              </div>
-            </div>
+        const getX = (idx: number) => {
+          if (n <= 1) return svgWidth / 2;
+          const paddingLeft = 70;
+          const paddingRight = 50;
+          const usableWidth = svgWidth - paddingLeft - paddingRight;
+          return paddingLeft + (idx / (n - 1)) * usableWidth;
+        };
 
-            {/* Tabela de Medições */}
-            <div className="border border-slate-200 rounded-xl overflow-hidden">
-              <table className="w-full text-xs text-left">
-                <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold">
-                  <tr>
-                    <th className="p-3">Data</th>
-                    <th className="p-3">Score Total</th>
-                    <th className="p-3">Marca (0-25)</th>
-                    <th className="p-3">Pessoas (0-25)</th>
-                    <th className="p-3">Insights (0-25)</th>
-                    <th className="p-3">Relacionamentos (0-25)</th>
-                    <th className="p-3">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-slate-700">
-                  {historicoSSI.map((item, idx) => (
-                    <tr key={idx} className="hover:bg-slate-50/50">
-                      <td className="p-3 font-semibold">{item.data}</td>
-                      <td className="p-3 font-bold text-slate-900">{item.total} / 100</td>
-                      <td className="p-3">{item.p1}</td>
-                      <td className="p-3">{item.p2}</td>
-                      <td className="p-3">{item.p3}</td>
-                      <td className="p-3">{item.p4}</td>
-                      <td className="p-3">
-                        <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-medium text-[10px]">
-                          Auditado
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+        const getYTotal = (score: number) => {
+          const clamped = Math.min(100, Math.max(0, score));
+          return plotYMax - (clamped / 100) * plotHeight;
+        };
 
-            {/* Gráfico Comparativo de Evolução */}
-            <div className="p-5 rounded-xl border border-slate-200 bg-slate-50/70 space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200/80 pb-3">
+        const getYPilar = (score: number) => {
+          const clamped = Math.min(25, Math.max(0, score));
+          return plotYMax - (clamped / 25) * plotHeight;
+        };
+
+        const totalLinePoints = historyList.map((item, idx) => `${getX(idx)},${getYTotal(item.total)}`).join(' ');
+        const totalAreaPoints = n > 1 
+          ? `${getX(0)},${plotYMax} ${totalLinePoints} ${getX(n - 1)},${plotYMax}`
+          : `${getX(0) - 30},${plotYMax} ${getX(0)},${getYTotal(historyList[0].total)} ${getX(0) + 30},${plotYMax}`;
+
+        const pilaresConfig = [
+          { key: 'p1' as const, cor: '#2563eb', label: 'Marca' },
+          { key: 'p2' as const, cor: '#059669', label: 'Pessoas' },
+          { key: 'p3' as const, cor: '#d97706', label: 'Insights' },
+          { key: 'p4' as const, cor: '#7c3aed', label: 'Relacionamentos' }
+        ];
+
+        return (
+          <div className="space-y-6">
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                  <h4 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
-                    <TrendingUp className="w-4 h-4 text-blue-600" /> Gráfico Comparativo de Evolução
-                  </h4>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
-                    Acompanhe a curva de evolução entre suas medições registradas.
+                  <h3 className="text-base font-bold text-slate-900">Histórico de Medições do SSI</h3>
+                  <p className="text-xs text-slate-500">
+                    O gráfico e métricas atualizam instantaneamente conforme novas medições são adicionadas ou editadas na tabela.
                   </p>
                 </div>
 
-                {/* Seletor de Visão do Gráfico */}
-                <div className="flex items-center p-1 bg-white border border-slate-200 rounded-lg text-xs font-semibold self-start sm:self-auto">
+                <div className="flex items-center gap-2">
                   <button
-                    onClick={() => setChartViewMode('total')}
-                    className={`px-3 py-1 rounded-md transition ${
-                      chartViewMode === 'total' 
-                        ? 'bg-blue-600 text-white shadow-xs' 
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
+                    onClick={() => setShowAddMeasurementModal(true)}
+                    className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold flex items-center gap-1.5 transition shadow-xs"
                   >
-                    Pontuação Total (0-100)
+                    <Plus className="w-4 h-4 text-emerald-400" /> Nova Medição Manual
                   </button>
+
                   <button
-                    onClick={() => setChartViewMode('pilares')}
-                    className={`px-3 py-1 rounded-md transition ${
-                      chartViewMode === 'pilares' 
-                        ? 'bg-blue-600 text-white shadow-xs' 
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
+                    onClick={onNewUpload}
+                    className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-1.5 transition shadow-xs"
                   >
-                    Evolução dos 4 Pilares (0-25)
+                    <UploadCloud className="w-4 h-4" /> Importar Captura
                   </button>
                 </div>
               </div>
 
-              {/* Gráfico SVG Responsivo */}
-              <div className="bg-white rounded-xl p-4 border border-slate-200/80 shadow-xs">
-                {chartViewMode === 'total' ? (
-                  <div className="space-y-2">
-                    <svg viewBox="0 0 650 200" className="w-full h-44 overflow-visible">
-                      <defs>
-                        <linearGradient id="totalScoreGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#2563eb" stopOpacity="0.25" />
-                          <stop offset="100%" stopColor="#2563eb" stopOpacity="0.0" />
-                        </linearGradient>
-                      </defs>
+              {/* Cards de Métricas Dinâmicos calculados a partir da Tabela */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50">
+                  <span className="text-xs text-slate-500 font-medium">Score Geral Atual</span>
+                  <div className="flex items-baseline gap-2 mt-1">
+                    <span className="text-2xl font-black text-slate-900">{latestEntry.total}</span>
+                    <span className={`text-xs font-bold ${deltaTotal >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                      {deltaTotal > 0 ? `▲ +${deltaTotal} pts (+${percTotal}%)` : deltaTotal < 0 ? `▼ ${deltaTotal} pts (${percTotal}%)` : 'Sem variação'}
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-slate-400">vs. 1ª medição ({firstEntry.total} pts)</span>
+                </div>
 
-                      {/* Linhas de Grade Y (0, 25, 50, 75, 100) */}
-                      {[0, 25, 50, 75, 100].map((val) => {
-                        const y = 170 - (val / 100) * 140;
-                        return (
-                          <g key={val}>
-                            <line x1="50" y1={y} x2="620" y2={y} stroke="#f1f5f9" strokeWidth="1.5" strokeDasharray={val === 0 ? "none" : "3,3"} />
-                            <text x="42" y={y + 3.5} textAnchor="end" className="text-[10px] fill-slate-400 font-sans">{val}</text>
-                          </g>
-                        );
-                      })}
+                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50">
+                  <span className="text-xs text-slate-500 font-medium">Marca Profissional</span>
+                  <div className="flex items-baseline gap-2 mt-1">
+                    <span className="text-2xl font-black text-blue-700">{latestEntry.p1} / 25</span>
+                    <span className={`text-xs font-bold ${deltaP1 >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                      {deltaP1 > 0 ? `▲ +${deltaP1} pts` : deltaP1 < 0 ? `▼ ${deltaP1} pts` : '0 pts'}
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-slate-400">vs. 1ª medição ({firstEntry.p1} pts)</span>
+                </div>
 
-                      {/* Área Sombreada da Curva Total */}
-                      {historicoSSI.length >= 2 && (
+                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50">
+                  <span className="text-xs text-slate-500 font-medium">Pessoas Certas</span>
+                  <div className="flex items-baseline gap-2 mt-1">
+                    <span className="text-2xl font-black text-emerald-700">{latestEntry.p2} / 25</span>
+                    <span className={`text-xs font-bold ${deltaP2 >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                      {deltaP2 > 0 ? `▲ +${deltaP2} pts` : deltaP2 < 0 ? `▼ ${deltaP2} pts` : '0 pts'}
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-slate-400">vs. 1ª medição ({firstEntry.p2} pts)</span>
+                </div>
+
+                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50">
+                  <span className="text-xs text-slate-500 font-medium">Criar Relacionamentos</span>
+                  <div className="flex items-baseline gap-2 mt-1">
+                    <span className="text-2xl font-black text-purple-700">{latestEntry.p4} / 25</span>
+                    <span className={`text-xs font-bold ${deltaP4 >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                      {deltaP4 > 0 ? `▲ +${deltaP4} pts` : deltaP4 < 0 ? `▼ ${deltaP4} pts` : '0 pts'}
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-slate-400">vs. 1ª medição ({firstEntry.p4} pts)</span>
+                </div>
+              </div>
+
+              {/* Tabela de Medições Dinâmica */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs text-slate-500 px-1">
+                  <span className="font-semibold text-slate-700">Tabela de Registros ({historyList.length} {historyList.length === 1 ? 'medição' : 'medições'})</span>
+                  <span>Pontuações de 0 a 25 em cada pilar</span>
+                </div>
+                <div className="border border-slate-200 rounded-xl overflow-hidden">
+                  <table className="w-full text-xs text-left">
+                    <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold">
+                      <tr>
+                        <th className="p-3">Data</th>
+                        <th className="p-3">Score Total</th>
+                        <th className="p-3">Marca (0-25)</th>
+                        <th className="p-3">Pessoas (0-25)</th>
+                        <th className="p-3">Insights (0-25)</th>
+                        <th className="p-3">Relacionamentos (0-25)</th>
+                        <th className="p-3">Status</th>
+                        <th className="p-3 text-right">Ação</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-slate-700">
+                      {historyList.map((item, idx) => (
+                        <tr key={idx} className="hover:bg-slate-50/50 transition">
+                          <td className="p-3 font-semibold">{item.data}</td>
+                          <td className="p-3 font-bold text-slate-900">{item.total} / 100</td>
+                          <td className="p-3">{item.p1}</td>
+                          <td className="p-3">{item.p2}</td>
+                          <td className="p-3">{item.p3}</td>
+                          <td className="p-3">{item.p4}</td>
+                          <td className="p-3">
+                            <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-medium text-[10px]">
+                              Auditado
+                            </span>
+                          </td>
+                          <td className="p-3 text-right">
+                            {onUpdateHistorico && historyList.length > 1 && (
+                              <button
+                                onClick={() => handleDeleteMeasurement(idx)}
+                                title="Remover esta medição"
+                                className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Gráfico Comparativo de Evolução 100% Dinâmico com a Tabela */}
+              <div className="p-5 rounded-xl border border-slate-200 bg-slate-50/70 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200/80 pb-3">
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                      <TrendingUp className="w-4 h-4 text-blue-600" /> Gráfico Comparativo de Evolução
+                    </h4>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Atualizado em tempo real com todos os {historyList.length} registros da tabela acima.
+                    </p>
+                  </div>
+
+                  {/* Seletor de Visão do Gráfico */}
+                  <div className="flex items-center p-1 bg-white border border-slate-200 rounded-lg text-xs font-semibold self-start sm:self-auto">
+                    <button
+                      onClick={() => setChartViewMode('total')}
+                      className={`px-3 py-1 rounded-md transition ${
+                        chartViewMode === 'total' 
+                          ? 'bg-blue-600 text-white shadow-xs' 
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      Pontuação Total (0-100)
+                    </button>
+                    <button
+                      onClick={() => setChartViewMode('pilares')}
+                      className={`px-3 py-1 rounded-md transition ${
+                        chartViewMode === 'pilares' 
+                          ? 'bg-blue-600 text-white shadow-xs' 
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      Evolução dos 4 Pilares (0-25)
+                    </button>
+                  </div>
+                </div>
+
+                {/* Gráfico SVG Responsivo e Dinâmico */}
+                <div className="bg-white rounded-xl p-4 border border-slate-200/80 shadow-xs">
+                  {chartViewMode === 'total' ? (
+                    <div className="space-y-2">
+                      <svg viewBox="0 0 650 200" className="w-full h-44 overflow-visible">
+                        <defs>
+                          <linearGradient id="totalScoreGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#2563eb" stopOpacity="0.25" />
+                            <stop offset="100%" stopColor="#2563eb" stopOpacity="0.0" />
+                          </linearGradient>
+                        </defs>
+
+                        {/* Linhas de Grade Y (0, 25, 50, 75, 100) */}
+                        {[0, 25, 50, 75, 100].map((val) => {
+                          const y = getYTotal(val);
+                          return (
+                            <g key={val}>
+                              <line x1="50" y1={y} x2="620" y2={y} stroke="#f1f5f9" strokeWidth="1.5" strokeDasharray={val === 0 ? "none" : "3,3"} />
+                              <text x="42" y={y + 3.5} textAnchor="end" className="text-[10px] fill-slate-400 font-sans">{val}</text>
+                            </g>
+                          );
+                        })}
+
+                        {/* Área Sombreada da Curva Total */}
                         <polygon
-                          points={`120,${170 - (historicoSSI[0].total / 100) * 140} 550,${170 - (historicoSSI[historicoSSI.length - 1].total / 100) * 140} 550,170 120,170`}
+                          points={totalAreaPoints}
                           fill="url(#totalScoreGrad)"
                         />
-                      )}
 
-                      {/* Linha de Tendência */}
-                      {historicoSSI.length >= 2 && (
-                        <line
-                          x1="120"
-                          y1={170 - (historicoSSI[0].total / 100) * 140}
-                          x2="550"
-                          y2={170 - (historicoSSI[historicoSSI.length - 1].total / 100) * 140}
-                          stroke="#2563eb"
-                          strokeWidth="3.5"
-                          strokeLinecap="round"
-                        />
-                      )}
+                        {/* Linha de Tendência Conectando Todos os Pontos da Tabela */}
+                        {n > 1 && (
+                          <polyline
+                            points={totalLinePoints}
+                            fill="none"
+                            stroke="#2563eb"
+                            strokeWidth="3.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        )}
 
-                      {/* Pontos e Rótulos */}
-                      {historicoSSI.map((item, idx) => {
-                        const x = idx === 0 ? 120 : 550;
-                        const y = 170 - (item.total / 100) * 140;
-                        return (
-                          <g key={idx}>
-                            <line x1={x} y1={y} x2={x} y2="170" stroke="#cbd5e1" strokeWidth="1" strokeDasharray="2,2" />
-                            <circle cx={x} cy={y} r="6" fill="#ffffff" stroke="#2563eb" strokeWidth="3.5" className="drop-shadow-sm" />
-                            <rect x={x - 24} y={y - 28} width="48" height="20" rx="6" fill="#1e293b" />
-                            <text x={x} y={y - 14} textAnchor="middle" fill="#ffffff" className="text-[11px] font-bold font-sans">
-                              {item.total} pts
-                            </text>
-                            <text x={x} y="190" textAnchor="middle" className="text-[11px] font-semibold fill-slate-600 font-sans">
-                              {item.data}
-                            </text>
-                          </g>
-                        );
-                      })}
-                    </svg>
+                        {/* Pontos, Linhas Verticais e Rótulos para Cada Linha da Tabela */}
+                        {historyList.map((item, idx) => {
+                          const x = getX(idx);
+                          const y = getYTotal(item.total);
+                          return (
+                            <g key={idx} className="transition-all">
+                              <line x1={x} y1={y} x2={x} y2={plotYMax} stroke="#cbd5e1" strokeWidth="1" strokeDasharray="2,2" />
+                              <circle cx={x} cy={y} r="6" fill="#ffffff" stroke="#2563eb" strokeWidth="3.5" className="drop-shadow-sm" />
+                              <rect x={x - 24} y={y - 28} width="48" height="20" rx="6" fill="#1e293b" />
+                              <text x={x} y={y - 14} textAnchor="middle" fill="#ffffff" className="text-[11px] font-bold font-sans">
+                                {item.total} pts
+                              </text>
+                              <text x={x} y="190" textAnchor="middle" className="text-[11px] font-semibold fill-slate-600 font-sans">
+                                {item.data}
+                              </text>
+                            </g>
+                          );
+                        })}
+                      </svg>
 
-                    <div className="flex items-center justify-between text-xs pt-1 px-3 border-t border-slate-100">
-                      <span className="text-slate-500 font-medium">Evolução Líquida:</span>
-                      <span className="font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
-                        ▲ +{historicoSSI[historicoSSI.length - 1].total - historicoSSI[0].total} pontos (+{Math.round(((historicoSSI[historicoSSI.length - 1].total - historicoSSI[0].total) / historicoSSI[0].total) * 100)}% de ganho relativo)
-                      </span>
-                    </div>
-                  </div>
-                ) : (
-                  /* Visão dos 4 Pilares (0-25) */
-                  <div className="space-y-3">
-                    <svg viewBox="0 0 650 200" className="w-full h-44 overflow-visible">
-                      {[0, 5, 10, 15, 20, 25].map((val) => {
-                        const y = 170 - (val / 25) * 140;
-                        return (
-                          <g key={val}>
-                            <line x1="45" y1={y} x2="620" y2={y} stroke="#f1f5f9" strokeWidth="1.5" strokeDasharray={val === 0 ? "none" : "3,3"} />
-                            <text x="38" y={y + 3.5} textAnchor="end" className="text-[10px] fill-slate-400 font-sans">{val}</text>
-                          </g>
-                        );
-                      })}
-
-                      {[
-                        { key: 'p1' as const, cor: '#2563eb', label: 'Marca' },
-                        { key: 'p2' as const, cor: '#059669', label: 'Pessoas' },
-                        { key: 'p3' as const, cor: '#d97706', label: 'Insights' },
-                        { key: 'p4' as const, cor: '#7c3aed', label: 'Relacionamentos' }
-                      ].map((pilar) => {
-                        const y1 = 170 - (historicoSSI[0][pilar.key] / 25) * 140;
-                        const y2 = 170 - (historicoSSI[historicoSSI.length - 1][pilar.key] / 25) * 140;
-
-                        return (
-                          <g key={pilar.key}>
-                            <line x1="120" y1={y1} x2="550" y2={y2} stroke={pilar.cor} strokeWidth="2.5" strokeLinecap="round" />
-                            <circle cx="120" cy={y1} r="4.5" fill="#ffffff" stroke={pilar.cor} strokeWidth="2.5" />
-                            <circle cx="550" cy={y2} r="4.5" fill="#ffffff" stroke={pilar.cor} strokeWidth="2.5" />
-                            <text x="562" y={y2 + 3.5} fill={pilar.cor} className="text-[10px] font-bold font-sans">
-                              {historicoSSI[historicoSSI.length - 1][pilar.key]}/25
-                            </text>
-                          </g>
-                        );
-                      })}
-
-                      <text x="120" y="190" textAnchor="middle" className="text-[11px] font-semibold fill-slate-600 font-sans">
-                        {historicoSSI[0].data}
-                      </text>
-                      <text x="550" y="190" textAnchor="middle" className="text-[11px] font-semibold fill-slate-600 font-sans">
-                        {historicoSSI[historicoSSI.length - 1].data}
-                      </text>
-                    </svg>
-
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-100 text-xs">
-                      <div className="p-2 rounded-lg bg-blue-50/60 border border-blue-200/70 flex items-center justify-between">
-                        <span className="font-semibold text-blue-900 flex items-center gap-1.5">
-                          <span className="w-2.5 h-2.5 rounded-full bg-blue-600"></span> Marca
+                      <div className="flex items-center justify-between text-xs pt-1 px-3 border-t border-slate-100">
+                        <span className="text-slate-500 font-medium">Evolução Líquida ({firstEntry.data} → {latestEntry.data}):</span>
+                        <span className={`font-bold px-2.5 py-0.5 rounded-full border ${
+                          deltaTotal >= 0 
+                            ? 'text-emerald-600 bg-emerald-50 border-emerald-200' 
+                            : 'text-rose-600 bg-rose-50 border-rose-200'
+                        }`}>
+                          {deltaTotal >= 0 ? `▲ +${deltaTotal}` : `▼ ${deltaTotal}`} pontos ({deltaTotal >= 0 ? `+${percTotal}%` : `${percTotal}%`} de ganho relativo)
                         </span>
-                        <span className="font-bold text-emerald-700">▲ +4 pts</span>
-                      </div>
-                      <div className="p-2 rounded-lg bg-emerald-50/60 border border-emerald-200/70 flex items-center justify-between">
-                        <span className="font-semibold text-emerald-900 flex items-center gap-1.5">
-                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-600"></span> Pessoas
-                        </span>
-                        <span className="font-bold text-emerald-700">▲ +2 pts</span>
-                      </div>
-                      <div className="p-2 rounded-lg bg-amber-50/60 border border-amber-200/70 flex items-center justify-between">
-                        <span className="font-semibold text-amber-900 flex items-center gap-1.5">
-                          <span className="w-2.5 h-2.5 rounded-full bg-amber-600"></span> Insights
-                        </span>
-                        <span className="font-bold text-emerald-700">▲ +2 pts</span>
-                      </div>
-                      <div className="p-2 rounded-lg bg-purple-50/60 border border-purple-200/70 flex items-center justify-between">
-                        <span className="font-semibold text-purple-900 flex items-center gap-1.5">
-                          <span className="w-2.5 h-2.5 rounded-full bg-purple-600"></span> Relações
-                        </span>
-                        <span className="font-bold text-emerald-700">▲ +1 pt</span>
                       </div>
                     </div>
-                  </div>
-                )}
+                  ) : (
+                    /* Visão dos 4 Pilares (0-25) Totalmente Dinâmica */
+                    <div className="space-y-3">
+                      <svg viewBox="0 0 650 200" className="w-full h-44 overflow-visible">
+                        {[0, 5, 10, 15, 20, 25].map((val) => {
+                          const y = getYPilar(val);
+                          return (
+                            <g key={val}>
+                              <line x1="45" y1={y} x2="620" y2={y} stroke="#f1f5f9" strokeWidth="1.5" strokeDasharray={val === 0 ? "none" : "3,3"} />
+                              <text x="38" y={y + 3.5} textAnchor="end" className="text-[10px] fill-slate-400 font-sans">{val}</text>
+                            </g>
+                          );
+                        })}
+
+                        {pilaresConfig.map((pilar) => {
+                          const pointsStr = historyList.map((item, idx) => `${getX(idx)},${getYPilar(item[pilar.key])}`).join(' ');
+
+                          return (
+                            <g key={pilar.key}>
+                              {n > 1 && (
+                                <polyline
+                                  points={pointsStr}
+                                  fill="none"
+                                  stroke={pilar.cor}
+                                  strokeWidth="2.5"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                              )}
+                              {historyList.map((item, idx) => {
+                                const x = getX(idx);
+                                const y = getYPilar(item[pilar.key]);
+                                return (
+                                  <g key={`${pilar.key}-${idx}`}>
+                                    <circle cx={x} cy={y} r="4.5" fill="#ffffff" stroke={pilar.cor} strokeWidth="2.5" />
+                                    {idx === historyList.length - 1 && (
+                                      <text x={x + 8} y={y + 3.5} fill={pilar.cor} className="text-[10px] font-bold font-sans">
+                                        {item[pilar.key]}/25
+                                      </text>
+                                    )}
+                                  </g>
+                                );
+                              })}
+                            </g>
+                          );
+                        })}
+
+                        {historyList.map((item, idx) => (
+                          <text key={idx} x={getX(idx)} y="190" textAnchor="middle" className="text-[11px] font-semibold fill-slate-600 font-sans">
+                            {item.data}
+                          </text>
+                        ))}
+                      </svg>
+
+                      {/* Resumo dinâmico dos 4 pilares */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-100 text-xs">
+                        {pilaresConfig.map(pilar => {
+                          const diff = latestEntry[pilar.key] - firstEntry[pilar.key];
+                          return (
+                            <div key={pilar.key} className="p-2 rounded-lg bg-slate-50/80 border border-slate-200/80 flex items-center justify-between">
+                              <span className="font-semibold text-slate-800 flex items-center gap-1.5">
+                                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: pilar.cor }}></span> {pilar.label}
+                              </span>
+                              <span className={`font-bold ${diff >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
+                                {diff > 0 ? `▲ +${diff} pts` : diff < 0 ? `▼ ${diff} pts` : '0 pts'}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
+
+            {/* Modal para Adicionar Medição Manual */}
+            {showAddMeasurementModal && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
+                <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200 space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                      <Plus className="w-4 h-4 text-blue-600" /> Registrar Nova Medição Manual
+                    </h3>
+                    <button
+                      onClick={() => setShowAddMeasurementModal(false)}
+                      className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <form onSubmit={handleSaveNewMeasurement} className="space-y-4 text-xs">
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1">Rótulo / Data da Medição</label>
+                      <input
+                        type="text"
+                        value={newMeasureData}
+                        onChange={(e) => setNewMeasureData(e.target.value)}
+                        placeholder="Ex: 21/Set, Hoje, Semana 3..."
+                        className="w-full p-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                        required
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block font-medium text-slate-700 mb-1">Marca (0-25)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="25"
+                          value={newMeasureP1}
+                          onChange={(e) => setNewMeasureP1(Number(e.target.value))}
+                          className="w-full p-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-medium text-slate-700 mb-1">Pessoas (0-25)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="25"
+                          value={newMeasureP2}
+                          onChange={(e) => setNewMeasureP2(Number(e.target.value))}
+                          className="w-full p-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-medium text-slate-700 mb-1">Insights (0-25)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="25"
+                          value={newMeasureP3}
+                          onChange={(e) => setNewMeasureP3(Number(e.target.value))}
+                          className="w-full p-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-medium text-slate-700 mb-1">Relacionamentos (0-25)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="25"
+                          value={newMeasureP4}
+                          onChange={(e) => setNewMeasureP4(Number(e.target.value))}
+                          className="w-full p-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div className="p-3 rounded-lg bg-blue-50 border border-blue-200 flex items-center justify-between">
+                      <span className="font-semibold text-blue-900">Score Total Calculado:</span>
+                      <span className="text-base font-black text-blue-700">
+                        {Number(newMeasureP1) + Number(newMeasureP2) + Number(newMeasureP3) + Number(newMeasureP4)} / 100
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                      <button
+                        type="button"
+                        onClick={() => setShowAddMeasurementModal(false)}
+                        className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 font-semibold"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="submit"
+                        className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold transition shadow-xs"
+                      >
+                        Salvar e Atualizar Gráfico
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

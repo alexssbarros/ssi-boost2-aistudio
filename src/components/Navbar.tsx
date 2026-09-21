@@ -21,6 +21,7 @@ interface NavbarProps {
   onOpenAccountModal: () => void;
   onOpenLoginModal: () => void;
   onOpenFaq?: () => void;
+  onOpenDashboard?: () => void;
 }
 
 export function Navbar({
@@ -34,7 +35,8 @@ export function Navbar({
   onOpenNewMeasurement,
   onOpenAccountModal,
   onOpenLoginModal,
-  onOpenFaq
+  onOpenFaq,
+  onOpenDashboard
 }: NavbarProps) {
   return (
     <nav className="bg-white border-b border-slate-200 sticky top-0 z-40 px-4 md:px-8 py-3.5 flex items-center justify-between shadow-2xs">
@@ -60,6 +62,15 @@ export function Navbar({
         >
           Início
         </button>
+
+        {isUserLoggedIn && (userPlan === 'monthly' || userPlan === 'annual') && onOpenDashboard && (
+          <button
+            onClick={onOpenDashboard}
+            className={`hover:text-blue-600 transition flex items-center gap-1 py-1 ${currentStep === 'dashboard' ? 'text-blue-600 font-bold' : ''}`}
+          >
+            Meu Painel
+          </button>
+        )}
 
         <button
           onClick={() => onNavigateSection('secao-pilares')}

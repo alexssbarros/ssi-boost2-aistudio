@@ -185,12 +185,12 @@ export function InputSSIView({
         {/* Fallback de entrada manual e exemplo de teste */}
         <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
           <span className="text-xs text-slate-500">Prefere digitar ou fazer um teste imediato?</span>
-          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+          <div className="flex flex-row items-center gap-2.5 w-full sm:w-auto">
             {onQuickSample && (
               <button
                 type="button"
                 onClick={onQuickSample}
-                className="flex-1 sm:flex-initial px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs transition"
+                className="flex-1 sm:flex-initial whitespace-nowrap px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs transition text-center"
               >
                 Usar pontuação de exemplo (58 pts)
               </button>
@@ -198,7 +198,7 @@ export function InputSSIView({
             <button 
               type="button"
               onClick={onManualInput}
-              className="flex-1 sm:flex-initial px-4 py-2 rounded-xl border border-slate-300 hover:bg-slate-100 text-slate-700 font-semibold text-xs flex items-center justify-center gap-1.5 transition"
+              className="flex-1 sm:flex-initial whitespace-nowrap px-4 py-2.5 rounded-xl border border-slate-300 hover:bg-slate-100 text-slate-700 font-semibold text-xs flex items-center justify-center gap-1.5 transition text-center"
             >
               <Edit3 className="w-3.5 h-3.5 text-slate-500" /> Digitar manualmente
             </button>

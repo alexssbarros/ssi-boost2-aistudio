@@ -534,12 +534,14 @@ app.post('/api/create-checkout-session', async (req, res) => {
       client_reference_id: userId,
       metadata: {
         userId,
+        userEmail: userEmail || '',
         plan,
         app: 'ssi_boost'
       },
       subscription_data: {
         metadata: {
           userId,
+          userEmail: userEmail || '',
           plan,
           app: 'ssi_boost'
         }
@@ -615,6 +617,146 @@ app.post('/api/stripe/webhook', async (req: any, res) => {
   }
 
   return res.json({ received: true });
+});
+
+// 10. Stripe: Verify Checkout Session Status
+app.get('/api/stripe/verify-session', async (req, res) => {
+  try {
+    const sessionId = (req.query.sessionId as string)?.trim();
+    if (!sessionId) {
+      return res.status(400).json({ error: 'sessionId é obrigatório' });
+    }
+
+    if (sessionId.startsWith('sim_')) {
+      const plan = (req.query.plan as string) || 'annual';
+      return res.json({
+        paid: true,
+        status: 'complete',
+        paymentStatus: 'paid',
+        plan,
+        email: (req.query.email as string) || 'alexsbarros@gmail.com',
+        name: 'Alex Barros',
+        simulated: true
+      });
+    }
+
+    const stripe = getStripeClient();
+    if (!stripe) {
+      return res.status(400).json({ error: 'Stripe não configurado no backend.' });
+    }
+
+    const session = await stripe.checkout.sessions.retrieve(sessionId, {
+      expand: ['customer', 'subscription']
+    });
+
+    const isPaid = session.payment_status === 'paid' || session.status === 'complete';
+    const plan = session.metadata?.plan || ((session.amount_total || 0) > 10000 ? 'annual' : 'monthly');
+    const customerEmail = 
+      session.customer_details?.email || 
+      session.customer_email || 
+      (typeof session.customer === 'object' && session.customer ? (session.customer as any).email : '');
+    const customerName = 
+      session.customer_details?.name || 
+      (typeof session.customer === 'object' && session.customer ? (session.customer as any).name : '');
+    const userId = session.metadata?.userId || session.client_reference_id;
+
+    return res.json({
+      paid: isPaid,
+      status: session.status,
+      paymentStatus: session.payment_status,
+      plan,
+      email: customerEmail,
+      name: customerName,
+      userId,
+      customerId: typeof session.customer === 'string' ? session.customer : (session.customer as any)?.id,
+      subscriptionId: typeof session.subscription === 'string' ? session.subscription : (session.subscription as any)?.id
+    });
+  } catch (err: any) {
+    console.error('Erro ao verificar sessão do Stripe:', err);
+    return res.status(500).json({ error: err.message || 'Erro ao consultar sessão no Stripe.' });
+  }
+});
+
+// 11. Stripe: Check Active Subscription by Email or UserId
+app.get('/api/stripe/check-subscription', async (req, res) => {
+  try {
+    const email = (req.query.email as string)?.trim()?.toLowerCase();
+    const userId = (req.query.userId as string)?.trim();
+
+    if (!email && !userId) {
+      return res.status(400).json({ error: 'Email ou userId é necessário.' });
+    }
+
+    const stripe = getStripeClient();
+    if (!stripe) {
+      return res.json({
+        hasActiveSubscription: false,
+        message: 'Stripe não configurado no backend.'
+      });
+    }
+
+    // 1. Procurar clientes no Stripe pelo e-mail
+    if (email) {
+      const customers = await stripe.customers.list({
+        email: email,
+        limit: 5
+      });
+
+      for (const customer of customers.data) {
+        const subscriptions = await stripe.subscriptions.list({
+          customer: customer.id,
+          status: 'all',
+          limit: 5
+        });
+
+        const activeSub = subscriptions.data.find(s => s.status === 'active' || s.status === 'trialing');
+        if (activeSub) {
+          const interval = activeSub.items?.data?.[0]?.price?.recurring?.interval;
+          const plan = activeSub.metadata?.plan || (interval === 'year' ? 'annual' : 'monthly');
+
+          return res.json({
+            hasActiveSubscription: true,
+            plan,
+            customerEmail: email,
+            customerName: customer.name || (email.includes('@') ? email.split('@')[0] : 'Assinante'),
+            subscriptionId: activeSub.id,
+            status: activeSub.status,
+            currentPeriodEnd: (activeSub as any).current_period_end
+          });
+        }
+      }
+
+      // 2. Verificar checkout sessions recentes pagas associadas a este e-mail
+      const checkoutSessions = await stripe.checkout.sessions.list({
+        limit: 15
+      });
+
+      const matchingSession = checkoutSessions.data.find(cs => 
+        ((cs.customer_details?.email && cs.customer_details.email.toLowerCase() === email) ||
+         (cs.customer_email && cs.customer_email.toLowerCase() === email)) &&
+        (cs.payment_status === 'paid' || cs.status === 'complete')
+      );
+
+      if (matchingSession) {
+        const plan = matchingSession.metadata?.plan || ((matchingSession.amount_total || 0) > 10000 ? 'annual' : 'monthly');
+        return res.json({
+          hasActiveSubscription: true,
+          plan,
+          customerEmail: email,
+          customerName: matchingSession.customer_details?.name || email.split('@')[0],
+          sessionId: matchingSession.id,
+          status: 'active'
+        });
+      }
+    }
+
+    return res.json({
+      hasActiveSubscription: false
+    });
+  } catch (err: any) {
+    console.error('Erro ao verificar assinatura no Stripe:', err);
+    return res.status(500).json({ error: err.message || 'Erro ao consultar assinatura no Stripe.' });
+  }
 });
 
 // Vite middleware in development vs static files in production

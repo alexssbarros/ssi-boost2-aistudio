@@ -128,14 +128,37 @@ export async function saveUserProfile(
         updatedAt: new Date().toISOString()
       });
     } else {
+      const existingData = existing.data();
+      // Não sobrescrever plano pago (monthly/annual) por free acidentalmente
+      const resolvedPlan = (data.plan && data.plan !== 'free') 
+        ? data.plan 
+        : (existingData.plan || data.plan || 'free');
+
       await setDoc(userRef, {
-        ...existing.data(),
-        nome: data.nome || existing.data().nome,
+        ...existingData,
+        nome: data.nome || existingData.nome,
+        plan: resolvedPlan,
+        avatarUrl: data.avatarUrl || existingData.avatarUrl || null,
         updatedAt: new Date().toISOString()
       }, { merge: true });
     }
   } catch (err) {
     console.warn('Aviso ao sincronizar perfil no Firestore:', err);
+  }
+}
+
+export async function updateUserPlan(
+  userId: string, 
+  plan: 'free' | 'monthly' | 'annual'
+): Promise<void> {
+  try {
+    const userRef = doc(db, 'users', userId);
+    await setDoc(userRef, {
+      plan,
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+  } catch (err) {
+    console.warn('Aviso ao atualizar plano no Firestore:', err);
   }
 }
 

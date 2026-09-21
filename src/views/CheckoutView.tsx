@@ -35,6 +35,12 @@ export function CheckoutView({
   const [isProcessing, setIsProcessing] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
+  React.useEffect(() => {
+    window.scrollTo(0, 0);
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }, []);
+
   const handleCheckout = async () => {
     setIsProcessing(true);
     setErrorMsg('');

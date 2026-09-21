@@ -9,7 +9,9 @@ import {
   Trash2, 
   LogOut, 
   Zap, 
-  ShieldCheck 
+  ShieldCheck,
+  RefreshCw,
+  Loader2
 } from 'lucide-react';
 import { UserAccount, SubscriptionPlan } from '../types';
 
@@ -21,6 +23,7 @@ interface AccountModalProps {
   onCancelSubscription: () => void;
   onDeleteAccount: () => void;
   onLogout: () => void;
+  onSyncSubscription?: () => Promise<SubscriptionPlan | null>;
 }
 
 export function AccountModal({
@@ -30,12 +33,15 @@ export function AccountModal({
   onUpgrade,
   onCancelSubscription,
   onDeleteAccount,
-  onLogout
+  onLogout,
+  onSyncSubscription
 }: AccountModalProps) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [resetFeedback, setResetFeedback] = useState('');
   const [showPasswordChange, setShowPasswordChange] = useState(false);
   const [novaSenha, setNovaSenha] = useState('');
+  const [isCheckingStripe, setIsCheckingStripe] = useState(false);
+  const [stripeCheckMsg, setStripeCheckMsg] = useState('');
 
   const displayName = userAccount?.nome?.trim() 
     ? userAccount.nome 
@@ -176,12 +182,55 @@ export function AccountModal({
                 : 'Você tem acesso irrestrito ao plano de 30 dias, rotinas diárias, 8 assistentes com IA e gráficos de evolução.'}
             </p>
             {userPlan === 'free' ? (
-              <button 
-                onClick={onUpgrade}
-                className="w-full py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition mt-1 shadow-sm flex items-center justify-center gap-1.5"
-              >
-                <Zap className="w-3.5 h-3.5" /> Fazer Upgrade para Plataforma Completa
-              </button>
+              <div className="space-y-2 mt-2">
+                <button 
+                  onClick={onUpgrade}
+                  className="w-full py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition shadow-sm flex items-center justify-center gap-1.5"
+                >
+                  <Zap className="w-3.5 h-3.5" /> Fazer Upgrade para Plataforma Completa
+                </button>
+
+                {onSyncSubscription && (
+                  <button
+                    type="button"
+                    disabled={isCheckingStripe}
+                    onClick={async () => {
+                      setIsCheckingStripe(true);
+                      setStripeCheckMsg('');
+                      try {
+                        const verified = await onSyncSubscription();
+                        if (verified && verified !== 'free') {
+                          setStripeCheckMsg('Assinatura identificada com sucesso! Acesso Pro liberado.');
+                        } else {
+                          setStripeCheckMsg('Nenhuma assinatura ativa encontrada no Stripe para este e-mail.');
+                        }
+                      } catch (err) {
+                        setStripeCheckMsg('Erro ao consultar Stripe.');
+                      } finally {
+                        setIsCheckingStripe(false);
+                      }
+                    }}
+                    className="w-full py-2 rounded-lg bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold text-xs transition flex items-center justify-center gap-1.5 disabled:opacity-60"
+                  >
+                    {isCheckingStripe ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" />
+                    ) : (
+                      <RefreshCw className="w-3.5 h-3.5 text-blue-600" />
+                    )}
+                    Já pagou no Stripe? Identificar Pagamento
+                  </button>
+                )}
+
+                {stripeCheckMsg && (
+                  <div className={`p-2 rounded-lg text-[11px] font-semibold flex items-center gap-1.5 ${
+                    stripeCheckMsg.includes('sucesso') 
+                      ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' 
+                      : 'bg-amber-50 text-amber-800 border border-amber-200'
+                  }`}>
+                    <span>{stripeCheckMsg}</span>
+                  </div>
+                )}
+              </div>
             ) : (
               <button 
                 onClick={onCancelSubscription}
