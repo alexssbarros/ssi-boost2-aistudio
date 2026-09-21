@@ -153,75 +153,6 @@ export function FreeDiagnosticView({
           </button>
         </div>
 
-        {/* Barra de Armazenamento e Nuvem (Disponível para assinantes) */}
-        {hasActiveSubscription && (
-          <div className="p-3.5 rounded-xl bg-gradient-to-r from-blue-50/60 to-slate-50 border border-blue-200/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-blue-600/10 border border-blue-200 flex items-center justify-center text-blue-700 flex-shrink-0">
-                <UploadCloud className="w-4 h-4" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-bold text-slate-900">Armazenamento em Nuvem</span>
-                  {uploadedScreenshotUrl && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-medium inline-flex items-center gap-1">
-                      <ImageIcon className="w-3 h-3" /> Captura Salva
-                    </span>
-                  )}
-                </div>
-                <p className="text-[11px] text-slate-500 mt-0.5">
-                  {savedReportUrl 
-                    ? 'Relatório oficial sincronizado e disponível para download e compartilhamento.' 
-                    : 'Grave esse diagnóstico e capturas no seu histórico'}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              {savedReportUrl ? (
-                <div className="flex items-center gap-2 flex-wrap">
-                  <a 
-                    href={savedReportUrl} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition"
-                  >
-                    <FileCheck className="w-3.5 h-3.5" /> Acessar Relatório <ExternalLink className="w-3 h-3" />
-                  </a>
-                  <button
-                    type="button"
-                    onClick={() => copyUrl(savedReportUrl)}
-                    className="px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium text-xs flex items-center gap-1 transition"
-                    title="Copiar link permanente"
-                  >
-                    {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                    {copiedLink ? 'Copiado!' : 'Copiar Link'}
-                  </button>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  disabled={isSavingReport}
-                  onClick={onSaveReportToStorage}
-                  className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition disabled:opacity-60 cursor-pointer"
-                >
-                  {isSavingReport ? (
-                    <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      Salvando no Histórico...
-                    </>
-                  ) : (
-                    <>
-                      <UploadCloud className="w-3.5 h-3.5" />
-                      Salvar no Histórico
-                    </>
-                  )}
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-
         {/* Síntese Geral (80-120 palavras) */}
         <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5 text-xs text-slate-700">
           <div className="flex items-center justify-between">
@@ -301,7 +232,7 @@ export function FreeDiagnosticView({
             <div>
               <div className="flex items-center gap-2">
                 <h4 className={`text-xs font-bold flex items-center gap-1.5 ${hasActiveSubscription ? 'text-indigo-950' : 'text-slate-700'}`}>
-                  <Sparkles className={`w-4 h-4 ${hasActiveSubscription ? 'text-indigo-600' : 'text-slate-400'}`} /> Auditoria Aprofundada com Gemini 3
+                  <Sparkles className={`w-4 h-4 ${hasActiveSubscription ? 'text-indigo-600' : 'text-slate-400'}`} /> Auditoria Aprofundada
                 </h4>
                 {!hasActiveSubscription && (
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200/80 text-slate-600 border border-slate-300 flex items-center gap-1">
@@ -422,6 +353,78 @@ export function FreeDiagnosticView({
             </div>
           </div>
         </div>
+
+        {/* Bloco de Exportação do Dossiê e Link de Compartilhamento (Ao final das recomendações) */}
+        {hasActiveSubscription && (
+          <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-xs">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700 flex-shrink-0 mt-0.5">
+                <UploadCloud className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-bold text-slate-900 text-sm">Exportar Dossiê e Link de Compartilhamento</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold border border-emerald-200">
+                    ✓ Histórico Gravado Automaticamente
+                  </span>
+                  {uploadedScreenshotUrl && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 font-semibold border border-blue-200 inline-flex items-center gap-1">
+                      <ImageIcon className="w-3 h-3" /> Captura Vinculada
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1 max-w-xl leading-relaxed">
+                  {savedReportUrl 
+                    ? 'Dossiê sincronizado com sucesso. Acesse online para impressão em PDF ou compartilhe o link permanente.' 
+                    : 'Seu histórico de medições já é salvo automaticamente no sistema. Use este recurso caso deseje gerar um link permanente com o dossiê executivo completo para compartilhar ou arquivar.'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 w-full sm:w-auto flex-shrink-0">
+              {savedReportUrl ? (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <a 
+                    href={savedReportUrl} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" /> Acessar Dossiê
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => copyUrl(savedReportUrl)}
+                    className="px-3 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium text-xs flex items-center gap-1.5 transition cursor-pointer"
+                    title="Copiar link permanente"
+                  >
+                    {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                    {copiedLink ? 'Link Copiado!' : 'Copiar Link'}
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  disabled={isSavingReport}
+                  onClick={onSaveReportToStorage}
+                  className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-2 shadow-sm transition disabled:opacity-60 cursor-pointer"
+                >
+                  {isSavingReport ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Gerando Dossiê e Link...
+                    </>
+                  ) : (
+                    <>
+                      <FileCheck className="w-4 h-4" />
+                      Gerar Link do Dossiê
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Prévia do Plano Completo (Apenas para não-assinantes. Assinantes ativos acessam diretamente o Painel) */}
@@ -471,7 +474,7 @@ export function FreeDiagnosticView({
               <Check className="w-3.5 h-3.5 text-emerald-700" /> Assinatura {userPlan === 'annual' ? 'Anual (Pro)' : 'Mensal'} Ativa
             </div>
             <h3 className="text-base md:text-xl font-bold text-slate-900">
-              Seu Plano Operacional de 30 Dias está totalmente liberado
+              Seu Plano Operacional de 30 Dias Está Liberado e Muito Mais! Confira!
             </h3>
             <p className="text-xs text-slate-600 max-w-xl">
               Você tem acesso completo aos ciclos diários guiados, simulação de pitches e aos 8 assistentes executivos de copywriting diretamente no seu painel.

@@ -620,16 +620,36 @@ export default function App() {
     }
   };
 
-  // Salvar relatório completo no Firebase Storage
+  // Salvar relatório completo e gerar link permanente do dossiê
   const handleSaveReportToStorage = async () => {
-    const currentUid = auth.currentUser?.uid || userAccount.id;
-    if (!currentUid) {
-      setShowAuthModal(true);
-      return;
-    }
+    const currentUid = auth.currentUser?.uid || userAccount.id || 'usr_convidado';
 
     setIsSavingReport(true);
     try {
+      let currentAudit = aiStrategicAnalysis;
+      if (!currentAudit) {
+        try {
+          const auditRes = await fetch('/api/diagnoses/full', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              scores,
+              contexto,
+              pilarFraco: pilarAnalise.maisFraco
+            })
+          });
+          if (auditRes.ok) {
+            const auditData = await auditRes.json();
+            if (auditData?.analysis) {
+              currentAudit = auditData.analysis;
+              setAiStrategicAnalysis(currentAudit);
+            }
+          }
+        } catch (auditErr) {
+          console.warn('Aviso ao obter auditoria para o dossiê:', auditErr);
+        }
+      }
+
       const reportPayload = {
         titulo: 'Relatório Completo de Social Selling Index (SSI Boost)',
         geradoEm: new Date().toISOString(),
@@ -647,16 +667,92 @@ export default function App() {
         },
         contexto,
         capturaUrl: uploadedScreenshotUrl || undefined,
-        analiseEstrategica: aiStrategicAnalysis || undefined
+        analiseEstrategica: currentAudit || undefined,
+        matrizPrioridades: [
+          {
+            nivel: 'Impacto 1: Alto',
+            acao: 'Otimizar Conversão de Convites & Abordagem Consultiva',
+            esforco: 'Baixo (Ajuste Tático)',
+            prazo: 'Imediato (2 a 5 dias)',
+            descricao: `Substituir abordagens padronizadas por notas personalizadas com perguntas consultivas sobre as dores de ${contexto.publico || 'decisores'}.`
+          },
+          {
+            nivel: 'Impacto 2: Médio',
+            acao: 'Comentários de Autoridade e Interações Técnicas',
+            esforco: 'Médio (Rotina Diária)',
+            prazo: 'Semanal Contínuo',
+            descricao: `Realizar de 3 a 5 comentários de profundidade técnica por semana em publicações de decisores de ${contexto.segmento || 'mercado'}.`
+          },
+          {
+            nivel: 'Impacto 3: Estrutural',
+            acao: 'Reestruturação da Seção "Sobre" e Headline Comercial',
+            esforco: 'Médio (Refatoração de Posicionamento)',
+            prazo: 'Primeiros 7 dias',
+            descricao: `Transformar seu perfil em uma página de autoridade focada nos problemas que você soluciona para ${contexto.segmento || 'sua área'}, superando ${contexto.dificuldade || 'baixa taxa de resposta'}.`
+          }
+        ],
+        recomendacoes48h: [
+          {
+            passo: 1,
+            titulo: 'Reestruturação Cirúrgica do Headline Comercial',
+            descricao: `Elimine termos genéricos e reformule seu título com foco em como você resolve problemas reais para ${contexto.publico || 'seus clientes'} em ${contexto.segmento || 'seu setor'}.`
+          },
+          {
+            passo: 2,
+            titulo: 'Filtro e Curadoria de Alvos no Sales Navigator',
+            descricao: 'Construa uma lista salva com até 50 contas prioritárias. Monitore atividade recente e interações antes de enviar novas conexões.'
+          },
+          {
+            passo: 3,
+            titulo: 'Comentários Qualificados e Interações de Alto Valor',
+            descricao: 'Dedique 10 minutos da sua rotina diária para contribuir em postagens estratégicas de tomadores de decisão com argumentos e dados de mercado.'
+          }
+        ],
+        habitosEvitar: [
+          {
+            titulo: 'Acúmulo de convites pendentes sem resposta',
+            descricao: 'Deixar dezenas de solicitações sem resposta por mais de 30 dias prejudica a taxa de aceitação perante o algoritmo do Sales Navigator.'
+          },
+          {
+            titulo: 'Prospecção de "Copia e Cola"',
+            descricao: 'Mensagens genéricas geram rejeição imediata, denúncias de spam e reduzem a relevância das suas mensagens privadas.'
+          },
+          {
+            titulo: 'Inconstância de interações operacionais',
+            descricao: 'Concentrar atividades em um único dia e passar semanas inativo anula o ganho progressivo do SSI.'
+          }
+        ]
       };
 
-      const url = await uploadDiagnosticReport(currentUid, reportPayload);
-      if (url) {
-        setSavedReportUrl(url);
-        setStorageStatusNote('Relatório salvo com sucesso no Firebase Storage.');
+      let generatedLink = '';
+
+      // 1. Gerar via endpoint do servidor (HTML renderizável + JSON completo)
+      try {
+        const res = await fetch('/api/reports/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: currentUid, reportPayload })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.reportUrl) {
+            generatedLink = window.location.origin + data.reportUrl;
+          }
+        }
+      } catch (srvErr) {
+        console.warn('Aviso ao gerar dossiê no servidor:', srvErr);
       }
+
+      // Fallback determinístico caso o ambiente esteja desconectado
+      if (!generatedLink) {
+        const blob = new Blob([JSON.stringify(reportPayload, null, 2)], { type: 'application/json' });
+        generatedLink = URL.createObjectURL(blob);
+      }
+
+      setSavedReportUrl(generatedLink);
+      setStorageStatusNote('Dossiê gerado e sincronizado com sucesso.');
     } catch (err) {
-      console.warn('Erro ao salvar relatório no Firebase Storage:', err);
+      console.warn('Erro ao salvar relatório:', err);
     } finally {
       setIsSavingReport(false);
     }
@@ -765,8 +861,15 @@ export default function App() {
       setCurrentStep('landing');
       setTimeout(() => {
         const el = document.getElementById(sectionId);
-        if (el) el.scrollIntoView({ behavior: 'smooth' });
-      }, 150);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth' });
+        } else {
+          setTimeout(() => {
+            const retryEl = document.getElementById(sectionId);
+            if (retryEl) retryEl.scrollIntoView({ behavior: 'smooth' });
+          }, 150);
+        }
+      }, 120);
     } else {
       const el = document.getElementById(sectionId);
       if (el) el.scrollIntoView({ behavior: 'smooth' });

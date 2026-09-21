@@ -87,8 +87,9 @@ export function Navbar({
         </button>
 
         <button
-          onClick={onOpenFaq || (() => onNavigateSection('secao-faq'))}
-          className={`hover:text-blue-600 transition flex items-center gap-1 py-1 ${currentStep === 'faq' ? 'text-blue-600 font-bold' : ''}`}
+          id="nav-link-faq-duvidas"
+          onClick={() => onNavigateSection('secao-faq')}
+          className="hover:text-blue-600 transition flex items-center gap-1 py-1 cursor-pointer"
         >
           Perguntas Frequentes
         </button>

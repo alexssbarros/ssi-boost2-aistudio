@@ -232,78 +232,6 @@ export function SubscriberDashboardView({
         </div>
       </div>
 
-      {/* Barra de Armazenamento e Nuvem */}
-      <div className="bg-white rounded-2xl p-4 md:p-5 border border-slate-200 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700 flex-shrink-0">
-            <UploadCloud className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-bold text-slate-900">Armazenamento em Nuvem</span>
-              {uploadedScreenshotUrl && (
-                <a 
-                  href={uploadedScreenshotUrl} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-[10px] px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-semibold border border-emerald-200 hover:bg-emerald-100 flex items-center gap-1 transition"
-                >
-                  <FileCheck className="w-3 h-3" /> Ver Captura do SSI <ExternalLink className="w-2.5 h-2.5" />
-                </a>
-              )}
-            </div>
-            <p className="text-[11px] text-slate-500 mt-0.5">
-              {savedReportUrl 
-                ? 'Relatório completo arquivado no seu histórico e disponível para download e auditoria.' 
-                : 'Grave esse diagnóstico e capturas no seu histórico'}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          {savedReportUrl ? (
-            <div className="flex items-center gap-2 flex-wrap">
-              <a 
-                href={savedReportUrl} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition"
-              >
-                <FileCheck className="w-3.5 h-3.5" /> Baixar Relatório <ExternalLink className="w-3 h-3" />
-              </a>
-              <button
-                type="button"
-                onClick={() => copyUrl(savedReportUrl)}
-                className="px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium text-xs flex items-center gap-1 transition"
-                title="Copiar link permanente"
-              >
-                {copiedReportLink ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                {copiedReportLink ? 'Copiado!' : 'Copiar Link'}
-              </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              disabled={isSavingReport}
-              onClick={onSaveReportToStorage}
-              className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition disabled:opacity-60 cursor-pointer"
-            >
-              {isSavingReport ? (
-                <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  Salvando no Histórico...
-                </>
-              ) : (
-                <>
-                  <UploadCloud className="w-3.5 h-3.5" />
-                  Salvar Relatório no Histórico
-                </>
-              )}
-            </button>
-          )}
-        </div>
-      </div>
-
       {/* Navegação entre Módulos em Botões Elevados */}
       <div className="bg-slate-100/90 p-2 md:p-2.5 rounded-2xl border border-slate-200/90 shadow-sm space-y-2">
         <div className="flex items-center justify-between px-2 pt-1">
@@ -484,7 +412,7 @@ export function SubscriberDashboardView({
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
                   <h3 className="text-xs font-bold text-indigo-950 flex items-center gap-1.5">
-                    <Sparkles className="w-4 h-4 text-indigo-600" /> Auditoria Aprofundada com Gemini 3 Flash
+                    <Sparkles className="w-4 h-4 text-indigo-600" /> Auditoria Aprofundada
                   </h3>
                   <p className="text-[11px] text-indigo-700">
                     Análise em tempo real do seu gargalo crítico ({pilarAnalise.maisFraco.short}: {pilarAnalise.maisFraco.valor}/25) para {contexto.publico}.
@@ -563,6 +491,81 @@ export function SubscriberDashboardView({
                     <strong>Inconstância de interações:</strong> Concentrar atividades em um único dia e passar semanas inativo anula o ganho de consistência do SSI.
                   </div>
                 </div>
+              </div>
+            </div>
+
+            {/* Bloco de Exportação do Dossiê e Link de Compartilhamento (Após hábitos e padrões) */}
+            <div className="bg-white rounded-2xl p-4 md:p-5 border border-slate-200 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-xs mt-3">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700 flex-shrink-0 mt-0.5">
+                  <UploadCloud className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-bold text-slate-900 text-sm">Exportar Dossiê e Link de Compartilhamento</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold border border-emerald-200">
+                      ✓ Histórico Gravado Automaticamente
+                    </span>
+                    {uploadedScreenshotUrl && (
+                      <a 
+                        href={uploadedScreenshotUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-[10px] px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-semibold border border-blue-200 hover:bg-blue-100 flex items-center gap-1 transition"
+                      >
+                        <FileCheck className="w-3 h-3" /> Ver Captura do SSI <ExternalLink className="w-2.5 h-2.5" />
+                      </a>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-1 max-w-2xl leading-relaxed">
+                    {savedReportUrl 
+                      ? 'Dossiê sincronizado com sucesso. Acesse online para impressão em PDF ou compartilhe o link permanente.' 
+                      : 'Seu histórico de medições já é salvo automaticamente no sistema. Use este recurso caso deseje gerar um link permanente com o dossiê executivo completo para compartilhar com equipe, clientes ou arquivar em PDF.'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto flex-shrink-0">
+                {savedReportUrl ? (
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <a 
+                      href={savedReportUrl} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" /> Acessar Dossiê
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => copyUrl(savedReportUrl)}
+                      className="px-3 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium text-xs flex items-center gap-1.5 transition cursor-pointer"
+                      title="Copiar link permanente"
+                    >
+                      {copiedReportLink ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                      {copiedReportLink ? 'Link Copiado!' : 'Copiar Link'}
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={isSavingReport}
+                    onClick={onSaveReportToStorage}
+                    className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-2 shadow-sm transition disabled:opacity-60 cursor-pointer"
+                  >
+                    {isSavingReport ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Gerando Dossiê e Link...
+                      </>
+                    ) : (
+                      <>
+                        <FileCheck className="w-4 h-4" />
+                        Gerar Link do Dossiê
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -960,16 +963,9 @@ export function SubscriberDashboardView({
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setShowAddMeasurementModal(true)}
-                    className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold flex items-center gap-1.5 transition shadow-xs"
+                    className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold flex items-center gap-1.5 transition shadow-xs cursor-pointer"
                   >
-                    <Plus className="w-4 h-4 text-emerald-400" /> Nova Medição Manual
-                  </button>
-
-                  <button
-                    onClick={onNewUpload}
-                    className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-1.5 transition shadow-xs"
-                  >
-                    <UploadCloud className="w-4 h-4" /> Importar Captura
+                    <Plus className="w-4 h-4 text-emerald-400" /> Nova Medição Direta no Histórico
                   </button>
                 </div>
               </div>
@@ -1264,7 +1260,7 @@ export function SubscriberDashboardView({
                 <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200 space-y-4">
                   <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                     <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                      <Plus className="w-4 h-4 text-blue-600" /> Registrar Nova Medição Manual
+                      <Plus className="w-4 h-4 text-blue-600" /> Registrar Nova Medição Direta no Histórico
                     </h3>
                     <button
                       onClick={() => setShowAddMeasurementModal(false)}

@@ -70,8 +70,9 @@ export function Footer({
             </li>
             <li>
               <button 
-                onClick={onOpenFaq || (() => onNavigateSection('secao-faq'))} 
-                className="hover:text-blue-400 transition"
+                id="footer-link-faq-completo"
+                onClick={onOpenFaq} 
+                className="hover:text-blue-400 transition cursor-pointer"
               >
                 Perguntas Frequentes (FAQ)
               </button>
