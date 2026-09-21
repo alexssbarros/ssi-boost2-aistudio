@@ -243,9 +243,8 @@ export function LandingView({ onStart, onSelectPlan, onOpenFaq }: LandingViewPro
               <p className="text-xs text-slate-600">R$ 312 cobrados anualmente (4 meses grátis vs. mensal).</p>
               <ul className="space-y-2 text-xs text-slate-700 pt-2">
                 <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-600" /> <strong>Todos os recursos da plataforma</strong></li>
-                <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-600" /> Histórico contínuo de medições</li>
-                <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-600" /> Acesso aos 8 geradores com IA</li>
-                <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-600" /> Economia direta de 33%</li>
+                <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-600" /> <strong>Histórico contínuo de medições</strong></li>
+                <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-600" /> <strong>Economia direta de 33%</strong></li>
               </ul>
             </div>
             <button
