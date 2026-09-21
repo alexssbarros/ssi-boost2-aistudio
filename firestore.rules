@@ -1,0 +1,56 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidUserProfile(data, userId) {
+      return data.keys().hasAll(['id', 'nome', 'email', 'plan']) &&
+        data.keys().hasOnly(['id', 'nome', 'email', 'plan', 'createdAt', 'updatedAt', 'avatarUrl']) &&
+        data.id == userId &&
+        data.nome is string && data.nome.size() >= 2 && data.nome.size() <= 120 &&
+        data.email is string && data.email.size() <= 254 &&
+        data.plan in ['free', 'monthly', 'annual'];
+    }
+
+    function isValidDiagnostic(data, userId) {
+      return data.keys().hasAll(['id', 'userId', 'createdAt', 'total', 'pilar1', 'pilar2', 'pilar3', 'pilar4']) &&
+        data.keys().hasOnly(['id', 'userId', 'createdAt', 'total', 'pilar1', 'pilar2', 'pilar3', 'pilar4', 'nivel', 'pilarFraco', 'pilarForte', 'contexto', 'screenshotUrl', 'reportUrl']) &&
+        data.userId == userId &&
+        data.total is number && data.total >= 0 && data.total <= 100 &&
+        data.pilar1 is number && data.pilar1 >= 0 && data.pilar1 <= 25 &&
+        data.pilar2 is number && data.pilar2 >= 0 && data.pilar2 <= 25 &&
+        data.pilar3 is number && data.pilar3 >= 0 && data.pilar3 <= 25 &&
+        data.pilar4 is number && data.pilar4 >= 0 && data.pilar4 <= 25;
+    }
+
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if false;
+      allow create: if isOwner(userId) && isValidId(userId) && isValidUserProfile(request.resource.data, userId);
+      allow update: if isOwner(userId) && isValidId(userId) && isValidUserProfile(request.resource.data, userId) &&
+                    request.resource.data.id == resource.data.id;
+      allow delete: if isOwner(userId) && isValidId(userId);
+
+      match /diagnostics/{diagnosticId} {
+        allow get: if isOwner(userId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(diagnosticId) && isValidDiagnostic(request.resource.data, userId);
+        allow update: if isOwner(userId) && isValidId(diagnosticId) && isValidDiagnostic(request.resource.data, userId) &&
+                      request.resource.data.id == resource.data.id &&
+                      request.resource.data.userId == resource.data.userId;
+        allow delete: if isOwner(userId) && isValidId(diagnosticId);
+      }
+    }
+  }
+}

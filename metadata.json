@@ -1,0 +1,6 @@
+{
+  "name": "SSI Boost - Social Selling Index",
+  "description": "Transforme seu Social Selling Index do LinkedIn em diagnóstico, prioridades e plano de ação de 30 dias com inteligência artificial.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

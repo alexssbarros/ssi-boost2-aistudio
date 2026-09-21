@@ -1,0 +1,49 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Perfil de usuário cadastrado no SSI Boost",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "ID do usuário (UID)" },
+        "nome": { "type": "string", "description": "Nome completo" },
+        "email": { "type": "string", "description": "E-mail de cadastro" },
+        "plan": { "type": "string", "enum": ["free", "monthly", "annual"], "description": "Plano de assinatura ativo" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Data de cadastro" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Data da última atualização" }
+      },
+      "required": ["id", "nome", "email", "plan"]
+    },
+    "Diagnostic": {
+      "title": "Diagnostic",
+      "description": "Diagnóstico do Social Selling Index (SSI)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "ID único da medição" },
+        "userId": { "type": "string", "description": "ID do usuário proprietário" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Data e hora da medição" },
+        "total": { "type": "number", "description": "Pontuação total do SSI (0-100)" },
+        "pilar1": { "type": "number", "description": "Estabelecer marca profissional (0-25)" },
+        "pilar2": { "type": "number", "description": "Localizar as pessoas certas (0-25)" },
+        "pilar3": { "type": "number", "description": "Interagir oferecendo insights (0-25)" },
+        "pilar4": { "type": "number", "description": "Criar relacionamentos (0-25)" },
+        "nivel": { "type": "string", "description": "Nível calculado do perfil" },
+        "pilarFraco": { "type": "string", "description": "Nome do pilar mais fraco identificado" },
+        "pilarForte": { "type": "string", "description": "Nome do pilar mais forte identificado" },
+        "screenshotUrl": { "type": "string", "description": "URL da captura de tela armazenada no Firebase Storage" },
+        "reportUrl": { "type": "string", "description": "URL do relatório completo armazenado no Firebase Storage" }
+      },
+      "required": ["id", "userId", "createdAt", "total", "pilar1", "pilar2", "pilar3", "pilar4"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Documento de perfil com isolamento de PII restrito ao próprio usuário"
+    },
+    "/users/{userId}/diagnostics/{diagnosticId}": {
+      "schema": "Diagnostic",
+      "description": "Histórico seguro e persistente de diagnósticos do usuário"
+    }
+  }
+}
