@@ -1,5 +1,6 @@
 import express from 'express';
 import path from 'path';
+import fs from 'fs';
 import { GoogleGenAI } from '@google/genai';
 import Stripe from 'stripe';
 import dotenv from 'dotenv';
@@ -9,6 +10,42 @@ dotenv.config();
 
 const app = express();
 const PORT = 3000;
+
+// Ocultar tecnologia do servidor
+app.disable('x-powered-by');
+
+// Cabeçalhos essenciais de segurança para SaaS em produção
+app.use((_req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  next();
+});
+
+// Rate limiting simples em memória para proteger endpoints de IA contra abusos
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+function aiRateLimiter(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const ip = req.ip || req.socket.remoteAddress || 'unknown';
+  const now = Date.now();
+  const windowMs = 60 * 1000; // 1 minuto
+  const maxRequests = 60; // Máximo de 60 chamadas/min por IP
+
+  const record = rateLimitMap.get(ip) || { count: 0, resetTime: now + windowMs };
+  if (now > record.resetTime) {
+    record.count = 1;
+    record.resetTime = now + windowMs;
+  } else {
+    record.count++;
+  }
+  rateLimitMap.set(ip, record);
+
+  if (record.count > maxRequests) {
+    return res.status(429).json({
+      error: 'Limite de requisições por minuto atingido. Por favor, aguarde alguns instantes.'
+    });
+  }
+  next();
+}
 
 // Middleware for JSON requests with rawBody capture for Stripe Webhook verification
 app.use(express.json({ 
@@ -108,8 +145,29 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// 1.1. Firebase backend configuration status
+app.get('/api/firebase/status', (req, res) => {
+  try {
+    const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
+    if (fs.existsSync(configPath)) {
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      return res.json({
+        configured: true,
+        projectId: config.projectId,
+        firestoreDatabaseId: config.firestoreDatabaseId,
+        authDomain: config.authDomain,
+        storageBucket: config.storageBucket,
+        hasApiKey: Boolean(config.apiKey)
+      });
+    }
+    return res.json({ configured: false, message: 'firebase-applet-config.json não localizado.' });
+  } catch (err: any) {
+    return res.status(500).json({ configured: false, error: err.message });
+  }
+});
+
 // 2. OCR Endpoint: Extract SSI metrics from screenshot
-app.post('/api/measurements/ocr', async (req, res) => {
+app.post('/api/measurements/ocr', aiRateLimiter, async (req, res) => {
   try {
     const { imageBase64, mimeType } = req.body;
     if (!imageBase64) {
@@ -224,7 +282,7 @@ Responda ESTRITAMENTE em formato JSON.`;
 });
 
 // 3. Strategic Audit Endpoint (Auditoria Aprofundada)
-app.post('/api/diagnoses/full', async (req, res) => {
+app.post('/api/diagnoses/full', aiRateLimiter, async (req, res) => {
   const { scores, contexto, pilarFraco } = req.body;
   const fallbackAudit = `DIAGNÓSTICO EXECUTIVO DO GARGALO:
 Sua pontuação de ${scores?.pilar3 || 11}/25 no pilar "${pilarFraco?.nome || 'Interagir Oferecendo Insights'}" é o principal limitador do seu Social Selling Index. No segmento de ${contexto?.segmento || 'B2B'}, decisores como ${contexto?.publico || 'CEOs'} não respondem a abordagens frias sem prévia validação de autoridade.
@@ -282,7 +340,7 @@ Estruture sua resposta estritamente em:
 });
 
 // 4. Assistants Generator (8 Geradores de Copywriting)
-app.post('/api/assistants/:type', async (req, res) => {
+app.post('/api/assistants/:type', aiRateLimiter, async (req, res) => {
   const { type } = req.params;
   const { contexto, pilarFraco, tone, customNote } = req.body;
   const selectedTone = tone || 'Consultivo';
@@ -414,7 +472,7 @@ Para cada ideia, apresente: Gancho inicial, Formato recomendado (carrossel, text
 });
 
 // 5. Simulator Endpoint (Simulador de Decisor B2B)
-app.post('/api/simulator/pitch', async (req, res) => {
+app.post('/api/simulator/pitch', aiRateLimiter, async (req, res) => {
   try {
     const { pitchInput, contexto } = req.body;
     if (!pitchInput) {
@@ -1494,6 +1552,11 @@ Seu score no pilar **"${pilarFracoNome}" (${pilarFracoNota}/25)** atua como o pr
   `;
 
   return res.send(html);
+});
+
+// Fallback 404 explícito para rotas de API não encontradas
+app.all('/api/*', (_req, res) => {
+  res.status(404).json({ error: 'Endpoint da API não encontrado.' });
 });
 
 // Vite middleware in development vs static files in production

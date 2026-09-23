@@ -67,6 +67,8 @@ interface SubscriberDashboardViewProps {
   copiedNotification: boolean;
   historicoSSI: HistoricalMeasurement[];
   onUpdateHistorico?: (newHistory: HistoricalMeasurement[]) => void;
+  onDeleteMeasurement?: (itemToDelete: HistoricalMeasurement, updatedList: HistoricalMeasurement[]) => Promise<void> | void;
+  onAddMeasurement?: (newEntry: HistoricalMeasurement) => Promise<void> | void;
   onNewUpload: () => void;
   onOpenBilling: () => void;
   pitchInput: string;
@@ -107,6 +109,8 @@ export function SubscriberDashboardView({
   copiedNotification,
   historicoSSI,
   onUpdateHistorico,
+  onDeleteMeasurement,
+  onAddMeasurement,
   onNewUpload,
   onOpenBilling,
   pitchInput,
@@ -125,6 +129,7 @@ export function SubscriberDashboardView({
   const [activeTab, setActiveTab] = useState<'diagnostico_completo' | 'plano' | 'assistentes' | 'simulador' | 'evolucao'>('diagnostico_completo');
   const [chartViewMode, setChartViewMode] = useState<'total' | 'pilares'>('total');
   const [copiedReportLink, setCopiedReportLink] = useState(false);
+  const [deletingIndex, setDeletingIndex] = useState<number | null>(null);
   
   // Estado para adicionar nova medição manual na tabela de histórico
   const [showAddMeasurementModal, setShowAddMeasurementModal] = useState(false);
@@ -136,7 +141,7 @@ export function SubscriberDashboardView({
   const [newMeasureP3, setNewMeasureP3] = useState(13);
   const [newMeasureP4, setNewMeasureP4] = useState(18);
 
-  const handleSaveNewMeasurement = (e?: React.FormEvent) => {
+  const handleSaveNewMeasurement = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const p1 = Math.min(25, Math.max(0, Number(newMeasureP1) || 0));
     const p2 = Math.min(25, Math.max(0, Number(newMeasureP2) || 0));
@@ -145,6 +150,7 @@ export function SubscriberDashboardView({
     const total = p1 + p2 + p3 + p4;
 
     const newEntry: HistoricalMeasurement = {
+      id: `diag_${Date.now()}`,
       data: newMeasureData.trim() || 'Hoje',
       total,
       p1,
@@ -153,21 +159,34 @@ export function SubscriberDashboardView({
       p4
     };
 
-    const updatedList = [...historicoSSI, newEntry];
-    if (onUpdateHistorico) {
-      onUpdateHistorico(updatedList);
+    if (onAddMeasurement) {
+      await onAddMeasurement(newEntry);
+    } else {
+      const updatedList = [...historicoSSI, newEntry];
+      if (onUpdateHistorico) {
+        onUpdateHistorico(updatedList);
+      }
     }
     setShowAddMeasurementModal(false);
   };
 
-  const handleDeleteMeasurement = (indexToDelete: number) => {
+  const handleDeleteMeasurement = async (indexToDelete: number) => {
     if (historicoSSI.length <= 1) {
       alert('Mantenha pelo menos uma medição registrada no histórico.');
       return;
     }
+    const itemToDelete = historicoSSI[indexToDelete];
     const updatedList = historicoSSI.filter((_, idx) => idx !== indexToDelete);
-    if (onUpdateHistorico) {
-      onUpdateHistorico(updatedList);
+    
+    setDeletingIndex(indexToDelete);
+    try {
+      if (onDeleteMeasurement) {
+        await onDeleteMeasurement(itemToDelete, updatedList);
+      } else if (onUpdateHistorico) {
+        onUpdateHistorico(updatedList);
+      }
+    } finally {
+      setDeletingIndex(null);
     }
   };
 
@@ -1023,23 +1042,23 @@ export function SubscriberDashboardView({
                   <span className="font-semibold text-slate-700">Tabela de Registros ({historyList.length} {historyList.length === 1 ? 'medição' : 'medições'})</span>
                   <span>Pontuações de 0 a 25 em cada pilar</span>
                 </div>
-                <div className="border border-slate-200 rounded-xl overflow-hidden">
-                  <table className="w-full text-xs text-left">
+                <div className="border border-slate-200 rounded-xl overflow-x-auto overflow-y-hidden shadow-2xs">
+                  <table className="w-full min-w-[620px] text-xs text-left">
                     <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold">
                       <tr>
-                        <th className="p-3">Data</th>
-                        <th className="p-3">Score Total</th>
-                        <th className="p-3">Marca (0-25)</th>
-                        <th className="p-3">Pessoas (0-25)</th>
-                        <th className="p-3">Insights (0-25)</th>
-                        <th className="p-3">Relacionamentos (0-25)</th>
-                        <th className="p-3">Status</th>
-                        <th className="p-3 text-right">Ação</th>
+                        <th className="p-3 whitespace-nowrap">Data</th>
+                        <th className="p-3 whitespace-nowrap">Score Total</th>
+                        <th className="p-3 whitespace-nowrap">Marca (0-25)</th>
+                        <th className="p-3 whitespace-nowrap">Pessoas (0-25)</th>
+                        <th className="p-3 whitespace-nowrap">Insights (0-25)</th>
+                        <th className="p-3 whitespace-nowrap">Relacionamentos (0-25)</th>
+                        <th className="p-3 whitespace-nowrap">Status</th>
+                        <th className="p-3 text-right whitespace-nowrap">Ação</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 text-slate-700">
                       {historyList.map((item, idx) => (
-                        <tr key={idx} className="hover:bg-slate-50/50 transition">
+                        <tr key={item.id || idx} className="hover:bg-slate-50/50 transition">
                           <td className="p-3 font-semibold">{item.data}</td>
                           <td className="p-3 font-bold text-slate-900">{item.total} / 100</td>
                           <td className="p-3">{item.p1}</td>
@@ -1052,13 +1071,19 @@ export function SubscriberDashboardView({
                             </span>
                           </td>
                           <td className="p-3 text-right">
-                            {onUpdateHistorico && historyList.length > 1 && (
+                            {(onDeleteMeasurement || onUpdateHistorico) && historyList.length > 1 && (
                               <button
+                                id={`delete-measurement-btn-${idx}`}
                                 onClick={() => handleDeleteMeasurement(idx)}
-                                title="Remover esta medição"
-                                className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
+                                disabled={deletingIndex === idx}
+                                title="Remover esta medição definitivamente"
+                                className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition disabled:opacity-50"
                               >
-                                <Trash2 className="w-3.5 h-3.5" />
+                                {deletingIndex === idx ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin text-rose-600" />
+                                ) : (
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                )}
                               </button>
                             )}
                           </td>
@@ -1082,10 +1107,10 @@ export function SubscriberDashboardView({
                   </div>
 
                   {/* Seletor de Visão do Gráfico */}
-                  <div className="flex items-center p-1 bg-white border border-slate-200 rounded-lg text-xs font-semibold self-start sm:self-auto">
+                  <div className="flex flex-wrap items-center p-1 bg-white border border-slate-200 rounded-lg text-xs font-semibold self-stretch sm:self-auto w-full sm:w-auto">
                     <button
                       onClick={() => setChartViewMode('total')}
-                      className={`px-3 py-1 rounded-md transition ${
+                      className={`flex-1 sm:flex-initial px-3 py-1.5 sm:py-1 rounded-md transition text-center whitespace-nowrap ${
                         chartViewMode === 'total' 
                           ? 'bg-blue-600 text-white shadow-xs' 
                           : 'text-slate-600 hover:text-slate-900'
@@ -1095,7 +1120,7 @@ export function SubscriberDashboardView({
                     </button>
                     <button
                       onClick={() => setChartViewMode('pilares')}
-                      className={`px-3 py-1 rounded-md transition ${
+                      className={`flex-1 sm:flex-initial px-3 py-1.5 sm:py-1 rounded-md transition text-center whitespace-nowrap ${
                         chartViewMode === 'pilares' 
                           ? 'bg-blue-600 text-white shadow-xs' 
                           : 'text-slate-600 hover:text-slate-900'
@@ -1167,9 +1192,9 @@ export function SubscriberDashboardView({
                         })}
                       </svg>
 
-                      <div className="flex items-center justify-between text-xs pt-1 px-3 border-t border-slate-100">
-                        <span className="text-slate-500 font-medium">Evolução Líquida ({firstEntry.data} → {latestEntry.data}):</span>
-                        <span className={`font-bold px-2.5 py-0.5 rounded-full border ${
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 sm:gap-2 text-xs pt-2 px-1 sm:px-3 border-t border-slate-100">
+                        <span className="text-slate-500 font-medium text-xs">Evolução Líquida ({firstEntry.data} → {latestEntry.data}):</span>
+                        <span className={`font-bold px-2.5 py-1 sm:py-0.5 rounded-full border text-xs self-start sm:self-auto inline-flex items-center gap-1 ${
                           deltaTotal >= 0 
                             ? 'text-emerald-600 bg-emerald-50 border-emerald-200' 
                             : 'text-rose-600 bg-rose-50 border-rose-200'

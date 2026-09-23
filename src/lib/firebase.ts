@@ -50,8 +50,56 @@ export const db = firebaseConfig.firestoreDatabaseId
 // Initialize Firebase Storage
 export const storage = getStorage(app);
 
+export enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+export interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+    isAnonymous?: boolean | null;
+    tenantId?: string | null;
+    providerInfo?: {
+      providerId?: string | null;
+      email?: string | null;
+    }[];
+  };
+}
+
+export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
+      providerInfo: auth.currentUser?.providerData?.map(provider => ({
+        providerId: provider.providerId,
+        email: provider.email,
+      })) || []
+    },
+    operationType,
+    path
+  };
+  console.warn('Firestore Operation Error:', JSON.stringify(errInfo));
+  return errInfo;
+}
+
 // Test connection on boot as mandated by security guidelines
 export async function testFirestoreConnection(): Promise<boolean> {
+  const testPath = 'test/connection';
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
     return true;
@@ -59,7 +107,7 @@ export async function testFirestoreConnection(): Promise<boolean> {
     if (error instanceof Error && error.message.includes('the client is offline')) {
       console.warn('Firebase client offline ou conexão pendente:', error.message);
     }
-    // Retornamos true para não bloquear a experiência do usuário caso a coleção de teste não exista
+    handleFirestoreError(error, OperationType.GET, testPath);
     return true;
   }
 }
@@ -156,6 +204,7 @@ export async function updateUserPlan(
   try {
     const userRef = doc(db, 'users', userId);
     await setDoc(userRef, {
+      id: userId,
       plan,
       updatedAt: new Date().toISOString()
     }, { merge: true });
@@ -260,6 +309,58 @@ export async function getUserDiagnostics(userId: string): Promise<StoredDiagnost
   } catch (err) {
     console.warn('Aviso ao buscar diagnósticos do Firestore:', err);
     return [];
+  }
+}
+
+/**
+ * Exclui um diagnóstico específico do Firestore por ID
+ */
+export async function deleteUserDiagnostic(userId: string, diagnosticId: string): Promise<boolean> {
+  try {
+    const diagRef = doc(db, 'users', userId, 'diagnostics', diagnosticId);
+    await deleteDoc(diagRef);
+    return true;
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, `users/${userId}/diagnostics/${diagnosticId}`);
+    return false;
+  }
+}
+
+/**
+ * Exclui um diagnóstico buscando pelo ID ou pelos campos numéricos caso o ID não conste no estado local
+ */
+export async function deleteUserDiagnosticByItem(
+  userId: string,
+  item: { id?: string; total: number; p1: number; p2: number; p3: number; p4: number; data?: string }
+): Promise<boolean> {
+  try {
+    // 1. Se possuir um ID persistido no Firestore (não sendo ID provisório local)
+    if (item.id && !item.id.startsWith('diag_initial_')) {
+      const diagRef = doc(db, 'users', userId, 'diagnostics', item.id);
+      await deleteDoc(diagRef);
+      return true;
+    }
+
+    // 2. Se não possuir ID ou for ID de fallback, busca o documento exato na subcoleção
+    const diagCol = collection(db, 'users', userId, 'diagnostics');
+    const snapshot = await getDocs(diagCol);
+    for (const docSnap of snapshot.docs) {
+      const d = docSnap.data();
+      if (
+        d.total === item.total &&
+        d.pilar1 === item.p1 &&
+        d.pilar2 === item.p2 &&
+        d.pilar3 === item.p3 &&
+        d.pilar4 === item.p4
+      ) {
+        await deleteDoc(docSnap.ref);
+        return true;
+      }
+    }
+    return false;
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, `users/${userId}/diagnostics`);
+    return false;
   }
 }
 

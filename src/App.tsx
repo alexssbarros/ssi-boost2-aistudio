@@ -29,6 +29,8 @@ import {
   auth, 
   saveDiagnostic, 
   getUserDiagnostics, 
+  deleteUserDiagnostic,
+  deleteUserDiagnosticByItem,
   logoutUser,
   uploadScreenshot,
   uploadDiagnosticReport,
@@ -289,6 +291,17 @@ export default function App() {
               p4: d.pilar4
             }));
             setHistoricoSSI(mappedHistory);
+            localStorage.setItem('ssiboost_history', JSON.stringify(mappedHistory));
+          } else {
+            const savedLocal = localStorage.getItem('ssiboost_history');
+            if (savedLocal) {
+              try {
+                const parsed = JSON.parse(savedLocal);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                  setHistoricoSSI(parsed);
+                }
+              } catch {}
+            }
           }
         } catch (err) {
           console.warn('Aviso ao carregar dados do usuário:', err);
@@ -593,7 +606,7 @@ export default function App() {
     const currentUid = auth.currentUser?.uid || userAccount.id;
     if (currentUid) {
       try {
-        await saveDiagnostic(
+        const diagId = await saveDiagnostic(
           currentUid,
           scores,
           pilarAnalise.nivel,
@@ -603,6 +616,7 @@ export default function App() {
           uploadedScreenshotUrl
         );
         const newHist: HistoricalMeasurement = {
+          id: diagId,
           data: 'Hoje',
           total: scores.total,
           p1: scores.pilar1,
@@ -612,7 +626,9 @@ export default function App() {
         };
         setHistoricoSSI(prev => {
           const filtered = prev.filter(h => h.data !== 'Hoje');
-          return [...filtered, newHist];
+          const updated = [...filtered, newHist];
+          localStorage.setItem('ssiboost_history', JSON.stringify(updated));
+          return updated;
         });
       } catch (err) {
         console.warn('Aviso ao persistir diagnóstico no Firestore:', err);
@@ -853,7 +869,53 @@ export default function App() {
     setUserPlan('free');
     setShowAccountModal(false);
     setCurrentStep('landing');
+    localStorage.removeItem('ssiboost_history');
+    setHistoricoSSI([
+      { id: 'diag_initial_1', data: '15/Ago', total: 49, p1: 14, p2: 10, p3: 9, p4: 16 },
+      { id: 'diag_initial_2', data: 'Hoje', total: 58, p1: 18, p2: 12, p3: 11, p4: 17 }
+    ]);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleDeleteMeasurement = async (itemToDelete: HistoricalMeasurement, updatedList: HistoricalMeasurement[]) => {
+    // 1. Atualiza imediatamente o estado React e o cache local
+    setHistoricoSSI(updatedList);
+    localStorage.setItem('ssiboost_history', JSON.stringify(updatedList));
+
+    // 2. Apaga definitivamente do Firestore se o usuário estiver autenticado
+    const currentUid = auth.currentUser?.uid || userAccount.id;
+    if (currentUid) {
+      try {
+        await deleteUserDiagnosticByItem(currentUid, itemToDelete);
+      } catch (err) {
+        console.warn('Aviso ao excluir medição do Firestore:', err);
+      }
+    }
+  };
+
+  const handleAddMeasurement = async (newEntry: HistoricalMeasurement) => {
+    let entryWithId: HistoricalMeasurement = { ...newEntry };
+    const currentUid = auth.currentUser?.uid || userAccount.id;
+
+    if (currentUid) {
+      try {
+        const diagId = await saveDiagnostic(
+          currentUid,
+          { total: newEntry.total, pilar1: newEntry.p1, pilar2: newEntry.p2, pilar3: newEntry.p3, pilar4: newEntry.p4 },
+          pilarAnalise.nivel,
+          pilarAnalise.maisFraco.short,
+          pilarAnalise.maisForte.short,
+          contexto
+        );
+        entryWithId.id = diagId;
+      } catch (err) {
+        console.warn('Aviso ao salvar nova medição no Firestore:', err);
+      }
+    }
+
+    const updatedList = [...historicoSSI, entryWithId];
+    setHistoricoSSI(updatedList);
+    localStorage.setItem('ssiboost_history', JSON.stringify(updatedList));
   };
 
   const handleNavigateSection = (sectionId: string) => {
@@ -1062,6 +1124,8 @@ export default function App() {
               setHistoricoSSI(newHistory);
               localStorage.setItem('ssiboost_history', JSON.stringify(newHistory));
             }}
+            onDeleteMeasurement={handleDeleteMeasurement}
+            onAddMeasurement={handleAddMeasurement}
             onNewUpload={() => {
               setCurrentStep('input_ssi');
               window.scrollTo({ top: 0, behavior: 'smooth' });

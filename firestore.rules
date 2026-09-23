@@ -2,6 +2,16 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // Default-deny catch-all global (nenhum documento é acessível a menos que explicitamente permitido)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Endpoint de verificação de conectividade e liveness do Firestore
+    match /test/{testId} {
+      allow get: if true;
+    }
+
     function isSignedIn() {
       return request.auth != null;
     }
@@ -15,12 +25,15 @@ service cloud.firestore {
     }
 
     function isValidUserProfile(data, userId) {
-      return data.keys().hasAll(['id', 'nome', 'email', 'plan']) &&
+      return data.keys().hasAll(['id', 'plan']) &&
         data.keys().hasOnly(['id', 'nome', 'email', 'plan', 'createdAt', 'updatedAt', 'avatarUrl']) &&
         data.id == userId &&
-        data.nome is string && data.nome.size() >= 2 && data.nome.size() <= 120 &&
-        data.email is string && data.email.size() <= 254 &&
-        data.plan in ['free', 'monthly', 'annual'];
+        data.plan in ['free', 'monthly', 'annual'] &&
+        (!('nome' in data) || (data.nome is string && data.nome.size() >= 1 && data.nome.size() <= 120)) &&
+        (!('email' in data) || (data.email is string && data.email.size() <= 254)) &&
+        (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 64)) &&
+        (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 64)) &&
+        (!('avatarUrl' in data) || data.avatarUrl == null || (data.avatarUrl is string && data.avatarUrl.size() <= 1000));
     }
 
     function isValidDiagnostic(data, userId) {
@@ -31,7 +44,13 @@ service cloud.firestore {
         data.pilar1 is number && data.pilar1 >= 0 && data.pilar1 <= 25 &&
         data.pilar2 is number && data.pilar2 >= 0 && data.pilar2 <= 25 &&
         data.pilar3 is number && data.pilar3 >= 0 && data.pilar3 <= 25 &&
-        data.pilar4 is number && data.pilar4 >= 0 && data.pilar4 <= 25;
+        data.pilar4 is number && data.pilar4 >= 0 && data.pilar4 <= 25 &&
+        (!('nivel' in data) || (data.nivel is string && data.nivel.size() <= 100)) &&
+        (!('pilarFraco' in data) || (data.pilarFraco is string && data.pilarFraco.size() <= 100)) &&
+        (!('pilarForte' in data) || (data.pilarForte is string && data.pilarForte.size() <= 100)) &&
+        (!('contexto' in data) || data.contexto is map) &&
+        (!('screenshotUrl' in data) || (data.screenshotUrl is string && data.screenshotUrl.size() <= 2000)) &&
+        (!('reportUrl' in data) || (data.reportUrl is string && data.reportUrl.size() <= 2000));
     }
 
     match /users/{userId} {

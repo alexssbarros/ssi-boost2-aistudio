@@ -183,9 +183,9 @@ export function ValidationView({
           <button 
             onClick={onConfirm}
             disabled={!isFormValid}
-            className="px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm flex items-center gap-2 transition shadow-md shadow-blue-600/25 disabled:opacity-50"
+            className="w-full sm:w-auto px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm flex items-center justify-center gap-2 transition shadow-md shadow-blue-600/25 disabled:opacity-50"
           >
-            Confirmar e Avançar para Contexto <ArrowRight className="w-4 h-4" />
+            Confirmar e Avançar para Contexto <ArrowRight className="w-4 h-4 shrink-0" />
           </button>
         </div>
       </div>

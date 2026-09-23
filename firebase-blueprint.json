@@ -9,6 +9,7 @@
         "nome": { "type": "string", "description": "Nome completo" },
         "email": { "type": "string", "description": "E-mail de cadastro" },
         "plan": { "type": "string", "enum": ["free", "monthly", "annual"], "description": "Plano de assinatura ativo" },
+        "avatarUrl": { "type": "string", "description": "URL da foto de perfil do usuário" },
         "createdAt": { "type": "string", "format": "date-time", "description": "Data de cadastro" },
         "updatedAt": { "type": "string", "format": "date-time", "description": "Data da última atualização" }
       },
