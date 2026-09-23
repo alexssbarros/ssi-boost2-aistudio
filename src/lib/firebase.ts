@@ -33,7 +33,7 @@ import {
   getDownloadURL 
 } from 'firebase/storage';
 import firebaseConfig from '../../firebase-applet-config.json';
-import { UserAccount, SSIScores, ContextoProfissional } from '../types';
+import { UserAccount, SSIScores, ContextoProfissional, ADMIN_UID, AdminUserRecord } from '../types';
 
 // Initialize Firebase App
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
@@ -465,5 +465,73 @@ export async function deleteCurrentAuthUser(): Promise<boolean> {
     return false;
   }
 }
+
+/**
+ * Admin Panel Functions (Exclusivo para zZps6KWTBgWXKbbi8xdnYaEsuAc2)
+ */
+
+export { ADMIN_UID };
+
+export function isUserAdmin(uid?: string | null): boolean {
+  return uid === ADMIN_UID;
+}
+
+export async function getAllUsersForAdmin(): Promise<AdminUserRecord[]> {
+  try {
+    const usersCol = collection(db, 'users');
+    const snapshot = await getDocs(usersCol);
+    const users: AdminUserRecord[] = [];
+
+    for (const docSnap of snapshot.docs) {
+      const data = docSnap.data();
+      users.push({
+        id: docSnap.id,
+        nome: data.nome || 'Usuário Sem Nome',
+        email: data.email || 'Sem e-mail',
+        plan: data.plan || 'free',
+        createdAt: data.createdAt,
+        updatedAt: data.updatedAt,
+        avatarUrl: data.avatarUrl || null,
+        filesCount: 0 // preenchido dinamicamente
+      });
+    }
+
+    return users;
+  } catch (err) {
+    handleFirestoreError(err, OperationType.LIST, 'users');
+    return [];
+  }
+}
+
+export async function getUserDiagnosticsForAdmin(userId: string): Promise<StoredDiagnostic[]> {
+  try {
+    const diagCol = collection(db, 'users', userId, 'diagnostics');
+    const q = query(diagCol, orderBy('createdAt', 'desc'));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(d => d.data() as StoredDiagnostic);
+  } catch (err) {
+    handleFirestoreError(err, OperationType.LIST, `users/${userId}/diagnostics`);
+    return [];
+  }
+}
+
+export async function updateUserPlanByAdmin(
+  userId: string, 
+  plan: 'free' | 'monthly' | 'annual'
+): Promise<boolean> {
+  try {
+    const userRef = doc(db, 'users', userId);
+    await setDoc(userRef, {
+      id: userId,
+      plan,
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+    return true;
+  } catch (err) {
+    handleFirestoreError(err, OperationType.UPDATE, `users/${userId}`);
+    return false;
+  }
+}
+
 
 

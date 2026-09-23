@@ -91,6 +91,19 @@ export interface PitchEvaluation {
   versaoReescrita: string;
 }
 
+export const ADMIN_UID = 'zZps6KWTBgWXKbbi8xdnYaEsuAc2';
+
+export interface AdminUserRecord {
+  id: string;
+  nome: string;
+  email: string;
+  plan: SubscriptionPlan;
+  createdAt?: string;
+  updatedAt?: string;
+  avatarUrl?: string | null;
+  filesCount?: number;
+}
+
 export type StepView =
   | 'landing'
   | 'input_ssi'
@@ -99,4 +112,5 @@ export type StepView =
   | 'report_free'
   | 'checkout'
   | 'dashboard'
-  | 'faq';
+  | 'faq'
+  | 'admin';

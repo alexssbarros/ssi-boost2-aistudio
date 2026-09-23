@@ -4,7 +4,8 @@ import {
   CheckCircle, 
   RefreshCw, 
   Settings, 
-  Zap
+  Zap,
+  ShieldAlert
 } from 'lucide-react';
 import { BrandLogoIcon } from './BrandLogoIcon';
 import { SubscriptionPlan } from '../types';
@@ -22,6 +23,8 @@ interface NavbarProps {
   onOpenLoginModal: () => void;
   onOpenFaq?: () => void;
   onOpenDashboard?: () => void;
+  isAdmin?: boolean;
+  onOpenAdmin?: () => void;
 }
 
 export function Navbar({
@@ -36,7 +39,9 @@ export function Navbar({
   onOpenAccountModal,
   onOpenLoginModal,
   onOpenFaq,
-  onOpenDashboard
+  onOpenDashboard,
+  isAdmin = false,
+  onOpenAdmin
 }: NavbarProps) {
   return (
     <nav className="bg-white border-b border-slate-200 sticky top-0 z-40 px-4 md:px-8 py-3.5 flex items-center justify-between shadow-2xs">
@@ -72,6 +77,20 @@ export function Navbar({
           </button>
         )}
 
+        {isUserLoggedIn && isAdmin && onOpenAdmin && (
+          <button
+            onClick={onOpenAdmin}
+            className={`transition flex items-center gap-1.5 py-1 px-2.5 rounded-lg border font-bold text-xs ${
+              currentStep === 'admin' 
+                ? 'bg-purple-100 text-purple-800 border-purple-300' 
+                : 'text-purple-700 hover:text-purple-900 border-purple-200/80 bg-purple-50/50 hover:bg-purple-100/60'
+            }`}
+          >
+            <ShieldAlert className="w-3.5 h-3.5 text-purple-600" />
+            Painel Admin
+          </button>
+        )}
+
         <button
           onClick={() => onNavigateSection('secao-pilares')}
           className="hover:text-blue-600 transition flex items-center gap-1 py-1"
@@ -99,14 +118,21 @@ export function Navbar({
       <div className="flex items-center gap-2.5">
         {isUserLoggedIn ? (
           <div className="flex items-center gap-2">
-            <span className={`hidden sm:inline-flex text-xs px-2.5 py-1 rounded-full font-semibold border items-center gap-1 ${
-              userPlan === 'free' 
-                ? 'bg-slate-100 text-slate-700 border-slate-300' 
-                : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-            }`}>
-              <CheckCircle className="w-3.5 h-3.5" /> 
-              {userPlan === 'free' ? 'Conta Gratuita' : userPlan === 'annual' ? 'Assinante Anual (Pro)' : 'Assinante Mensal'}
-            </span>
+            {isAdmin ? (
+              <span className="inline-flex text-xs px-2.5 py-1 rounded-full font-black border items-center gap-1.5 bg-purple-100 text-purple-900 border-purple-300 shadow-2xs">
+                <ShieldAlert className="w-3.5 h-3.5 text-purple-600" />
+                <span>ADMIN</span>
+              </span>
+            ) : (
+              <span className={`hidden sm:inline-flex text-xs px-2.5 py-1 rounded-full font-semibold border items-center gap-1 ${
+                userPlan === 'free' 
+                  ? 'bg-slate-100 text-slate-700 border-slate-300' 
+                  : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+              }`}>
+                <CheckCircle className="w-3.5 h-3.5" /> 
+                {userPlan === 'free' ? 'Conta Gratuita' : userPlan === 'annual' ? 'Assinante Anual (Pro)' : 'Assinante Mensal'}
+              </span>
+            )}
 
             {userPlan === 'free' ? (
               <button

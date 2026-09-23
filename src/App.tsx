@@ -24,6 +24,7 @@ import { ContextFormView } from './views/ContextFormView';
 import { FreeDiagnosticView } from './views/FreeDiagnosticView';
 import { CheckoutView } from './views/CheckoutView';
 import { SubscriberDashboardView } from './views/SubscriberDashboardView';
+import { AdminDashboardView } from './views/AdminDashboardView';
 import { FaqPage } from './components/FaqPage';
 import { 
   auth, 
@@ -39,7 +40,9 @@ import {
   updateUserPlan,
   saveUserProfile,
   deleteUserData,
-  deleteCurrentAuthUser
+  deleteCurrentAuthUser,
+  ADMIN_UID,
+  isUserAdmin
 } from './lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 
@@ -246,7 +249,12 @@ export default function App() {
     return null;
   };
 
-  // Bloqueio de rotas de análise para usuários não cadastrados/logados
+  // Identificador do Administrador
+  const isAdminUser = useMemo(() => {
+    return isUserAdmin(auth.currentUser?.uid) || isUserAdmin(userAccount.id);
+  }, [userAccount.id, auth.currentUser?.uid]);
+
+  // Bloqueio de rotas protegidas
   useEffect(() => {
     // Não bloquear se a URL contiver parâmetros de retorno de pagamento do Stripe
     const isStripeReturn = typeof window !== 'undefined' && (
@@ -256,17 +264,21 @@ export default function App() {
     );
 
     if (!isUserLoggedIn && !auth.currentUser && !isStripeReturn) {
-      const protectedSteps: StepView[] = ['input_ssi', 'validation', 'context', 'report_free', 'dashboard'];
+      const protectedSteps: StepView[] = ['input_ssi', 'validation', 'context', 'report_free', 'dashboard', 'admin'];
       if (protectedSteps.includes(currentStep)) {
         setCurrentStep('landing');
       }
+    } else if (currentStep === 'admin' && !isAdminUser) {
+      // Bloqueio de acesso para usuários não-administradores
+      setCurrentStep(isUserLoggedIn ? 'dashboard' : 'landing');
     }
-  }, [isUserLoggedIn, currentStep]);
+  }, [isUserLoggedIn, currentStep, isAdminUser]);
 
   // Firebase Auth sync and Firestore history load
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
       if (fbUser) {
+        const isUserAdminUid = isUserAdmin(fbUser.uid);
         setIsUserLoggedIn(true);
         setUserAccount(prev => ({
           ...prev,
@@ -275,6 +287,11 @@ export default function App() {
           nome: fbUser.displayName || prev.nome || (fbUser.email ? fbUser.email.split('@')[0] : 'Profissional'),
           avatarUrl: fbUser.photoURL || prev.avatarUrl
         }));
+
+        // Se este usuário específico fizer login, carregar a visualização exclusiva de administrador
+        if (isUserAdminUid) {
+          setCurrentStep('admin');
+        }
 
         // Sincronizar plano com Stripe e Firestore
         try {
@@ -945,6 +962,11 @@ export default function App() {
         currentStep={currentStep}
         isUserLoggedIn={isUserLoggedIn}
         userPlan={userPlan}
+        isAdmin={isAdminUser}
+        onOpenAdmin={() => {
+          setCurrentStep('admin');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
         onNavigateHome={() => {
           setCurrentStep('landing');
           window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1159,6 +1181,18 @@ export default function App() {
             }}
           />
         )}
+
+        {currentStep === 'admin' && (
+          <AdminDashboardView 
+            onSwitchToUserDashboard={() => {
+              setCurrentStep('dashboard');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            onLogout={handleLogout}
+            adminEmail={auth.currentUser?.email || userAccount.email || 'alexsbarros@gmail.com'}
+            adminUid={auth.currentUser?.uid || userAccount.id || ADMIN_UID}
+          />
+        )}
       </main>
 
       {/* Modais Globais */}
@@ -1190,10 +1224,12 @@ export default function App() {
             setIsUserLoggedIn(true);
             const userMail = email || userAccount.email || 'alexsbarros@gmail.com';
             const userName = nome || userAccount.nome || (email ? email.split('@')[0] : 'Alex Barros');
+            const currentUid = auth.currentUser?.uid || userAccount.id;
             
             setUserAccount(prev => {
               const updated = { 
                 ...prev, 
+                id: currentUid || prev.id,
                 email: userMail,
                 nome: userName
               };
@@ -1203,8 +1239,15 @@ export default function App() {
             });
             setShowAuthModal(false);
 
+            // Se for o ID do administrador, direcionar para a visualização exclusiva de administrador
+            if (isUserAdmin(currentUid)) {
+              setCurrentStep('admin');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+              return;
+            }
+
             // Sincronizar e identificar se este cadastro já tem assinatura ou pagamento pago no Stripe
-            const verified = await syncUserSubscription(userMail, auth.currentUser?.uid);
+            const verified = await syncUserSubscription(userMail, currentUid);
             if (verified && verified !== 'free') {
               setCurrentStep('dashboard');
             } else {

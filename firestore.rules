@@ -16,6 +16,10 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function isAdmin() {
+      return isSignedIn() && request.auth.uid == 'zZps6KWTBgWXKbbi8xdnYaEsuAc2';
+    }
+
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
@@ -54,22 +58,26 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow get: if isOwner(userId);
-      allow list: if false;
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
       allow create: if isOwner(userId) && isValidId(userId) && isValidUserProfile(request.resource.data, userId);
-      allow update: if isOwner(userId) && isValidId(userId) && isValidUserProfile(request.resource.data, userId) &&
+      allow update: if (isOwner(userId) || isAdmin()) && isValidId(userId) && isValidUserProfile(request.resource.data, userId) &&
                     request.resource.data.id == resource.data.id;
-      allow delete: if isOwner(userId) && isValidId(userId);
+      allow delete: if (isOwner(userId) || isAdmin()) && isValidId(userId);
 
       match /diagnostics/{diagnosticId} {
-        allow get: if isOwner(userId);
-        allow list: if isOwner(userId);
+        allow get: if isOwner(userId) || isAdmin();
+        allow list: if isOwner(userId) || isAdmin();
         allow create: if isOwner(userId) && isValidId(diagnosticId) && isValidDiagnostic(request.resource.data, userId);
-        allow update: if isOwner(userId) && isValidId(diagnosticId) && isValidDiagnostic(request.resource.data, userId) &&
+        allow update: if (isOwner(userId) || isAdmin()) && isValidId(diagnosticId) && isValidDiagnostic(request.resource.data, userId) &&
                       request.resource.data.id == resource.data.id &&
                       request.resource.data.userId == resource.data.userId;
-        allow delete: if isOwner(userId) && isValidId(diagnosticId);
+        allow delete: if (isOwner(userId) || isAdmin()) && isValidId(diagnosticId);
       }
+    }
+
+    match /{path=**}/diagnostics/{diagnosticId} {
+      allow read: if isAdmin();
     }
   }
 }
